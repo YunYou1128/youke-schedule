@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>教学管理信息服务平台</title>
+<script type="text/javascript" src="/jwglxt/js/globalweb/jquery-1.8.3.min.js"></script>
+<script type="text/javascript">
+  // 教务页面的脚本里常有裸的 < 与未闭合引号，抓回来的 HTML 必须容错解析
+  var menuUrl = "xtgl/index_initMenu.html?jsdm=&_t=" + new Date().getTime();
+  if (3 > 2 && "a" < "b") { document.write("<span>菜单已加载</span>"); }
+</script>
+</head>
+<body class="menu">
+<div id="header"><div class="logo">教学管理信息服务平台</div></div>
+<ul class="nav">
+  <li><a href="javascript:;">信息查询</a></li>
+  <li><a href="javascript:;" onclick="openKb()">学生个人课表</a></li>
+</ul>
+</body>
+</html>
+<div class="main-wrap">
+<table id="kbgrid_table_0" class="kbgrid_table" border="0" cellspacing="0" cellpadding="0">
+  <thead>
+    <tr>
+      <th class="kbgrid_th" style="width:56px;">节次</th>
+      <th>星期一</th>
+      <th>星期二</th>
+      <th>星期三</th>
+      <th>星期四</th>
+      <th>星期五</th>
+      <th>星期六</th>
+      <th>星期日</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td class="kbgrid_th">第1节<br>08:00-08:45</td>
+      <td id="1-1" rowspan="2"><div class="kbcontent1" id="kx1-1"><font title="课程名称">高等数学A</font><br><font title="教师">张建国</font><br><font title="周次">1-16周</font><br><font title="上课地点">教三-301</font></div></td>
+      <td id="2-1" rowspan="2"><div class="kbcontent1" id="kx2-1"><font title="课程名称">数据结构</font><br><font title="教师">王宏</font><br><font title="周次">1-16周</font><br><font title="上课地点">计算机楼-A102</font></div></td>
+      <td id="3-1"><div class="kbcontent1"></div></td>
+      <td id="4-1" rowspan="2"><div class="kbcontent1" id="kx4-1"><font title="课程名称">编译原理</font><br><font title="教师">孙志远</font><br><font title="周次">2-16周(双)</font><br><font title="上课地点">教四-506</font></div></td>
+      <td id="5-1"><div class="kbcontent1"></div></td>
+      <td id="6-1"><div class="kbcontent1"></div></td>
+      <td id="7-1" rowspan="4"><div class="kbcontent1" id="kx7-1"><font title="课程名称">自习</font><br><font title="教师"></font><br><font title="周次">1-16周</font><br><font title="上课地点">图书馆</font></div></td>
+    </tr>
+    <tr>
+      <td class="kbgrid_th">第2节<br>09:00-09:45</td>
+      <td id="3-2"><div class="kbcontent1"></div></td>
+      <td id="5-2"><div class="kbcontent1"></div></td>
+      <td id="6-2"><div class="kbcontent1"></div></td>
+    </tr>
+    <tr>
+      <td class="kbgrid_th">第3节<br>010:00-010:45</td>
+      <td id="1-3" rowspan="2"><div class="kbcontent1" id="kx1-3"><font title="课程名称">大学英语</font><br><font title="教师">李晓燕</font><br><font title="周次">1-16周</font><br><font title="上课地点">外语楼-205</font></div></td>
+      <td id="2-3"><div class="kbcontent1"></div></td>
+      <td id="3-3" rowspan="2"><div class="kbcontent1" id="kx3-3"><font title="课程名称">操作系统</font><br><font title="教师">陈立</font><br><font title="周次">1-16周</font><br><font title="上课地点">计算机楼-B301</font></div></td>
+      <td id="4-3"><div class="kbcontent1"></div></td>
+      <td id="5-3" rowspan="2"><div class="kbcontent1" id="kx5-3"><font title="课程名称">软件工程</font><br><font title="教师">吴倩</font><br><font title="周次">1-16周</font><br><font title="上课地点">计算机楼-B402</font></div></td>
+      <td id="6-3" rowspan="2"><div class="kbcontent1" id="kx6-3"><font title="课程名称">学术讲座</font><br><font title="教师">外聘专家</font><br><font title="周次">1,4,8,12周</font><br><font title="上课地点">图书馆报告厅</font></div></td>
+    </tr>
+    <tr>
+      <td class="kbgrid_th">第4节<br>011:00-011:45</td>
+      <td id="2-4"><div class="kbcontent1"></div></td>
+      <td id="4-4"><div class="kbcontent1"></div></td>
+    </tr>
+    <tr>
+      <td class="kbgrid_th">第5节<br>012:00-012:45</td>
+      <td id="1-5"><div class="kbcontent1"></div></td>
+      <td id="2-5"><div class="kbcontent1"></div></td>
+      <td id="3-5"><div class="kbcontent1"></div></td>
+      <td id="4-5"><div class="kbcontent1"></div></td>
+      <td id="5-5"><div class="kbcontent1"></div></td>
+      <td id="6-5"><div class="kbcontent1"></div></td>
+      <td id="7-5"><div class="kbcontent1"></div></td>
+    </tr>
+    <tr>
+      <td class="kbgrid_th">第6节<br>013:00-013:45</td>
+      <td id="1-6" rowspan="2"><div class="kbcontent1" id="kx1-6"><font title="课程名称">概率论与数理统计</font><br><font title="教师">张建国</font><br><font title="周次">1-16周(单)</font><br><font title="上课地点">教三-302</font></div></td>
+      <td id="2-6" rowspan="2"><div class="kbcontent1" id="kx2-6"><font title="课程名称">线性代数</font><br><font title="教师">赵敏</font><br><font title="周次">1-16周(单)</font><br><font title="上课地点">教二-204</font></div></td>
+      <td id="3-6" rowspan="2"><div class="kbcontent1" id="kx3-6"><font title="课程名称">算法设计与分析</font><br><font title="教师">王宏</font><br><font title="周次">1-8,10-16周</font><br><font title="上课地点">计算机楼-A102</font></div></td>
+      <td id="4-6" rowspan="2"><div class="kbcontent1" id="kx4-6"><font title="课程名称">计算机网络</font><br><font title="教师">周涛</font><br><font title="周次">1-16周</font><br><font title="上课地点">计算机楼-A203</font></div></td>
+      <td id="5-6"><div class="kbcontent1"></div></td>
+      <td id="6-6"><div class="kbcontent1"></div></td>
+      <td id="7-6"><div class="kbcontent1"></div></td>
+    </tr>
+    <tr>
+      <td class="kbgrid_th">第7节<br>014:00-014:45</td>
+      <td id="5-7"><div class="kbcontent1"></div></td>
+      <td id="6-7"><div class="kbcontent1"></div></td>
+      <td id="7-7"><div class="kbcontent1"></div></td>
+    </tr>
+    <tr>
+      <td class="kbgrid_th">第8节<br>015:00-015:45</td>
+      <td id="1-8"><div class="kbcontent1"></div></td>
+      <td id="2-8" rowspan="2"><div class="kbcontent1" id="kx2-8"><font title="课程名称">体育（篮球）</font><br><font title="教师">刘强</font><br><font title="周次">1-16周</font><br><font title="上课地点">体育馆</font></div></td>
+      <td id="3-8"><div class="kbcontent1"></div></td>
+      <td id="4-8" rowspan="2"><div class="kbcontent1" id="kx4-8"><font title="课程名称">Web前端开发</font><br><font title="教师">吴倩</font><br><font title="周次">1-16周(双)</font><br><font title="上课地点">计算机楼-B402</font></div></td>
+      <td id="5-8" rowspan="2"><div class="kbcontent1" id="kx5-8"><font title="课程名称">马克思主义基本原理</font><br><font title="教师">郑海</font><br><font title="周次">1-12周</font><br><font title="上课地点">教一-101</font></div></td>
+      <td id="6-8"><div class="kbcontent1"></div></td>
+      <td id="7-8"><div class="kbcontent1"></div></td>
+    </tr>
+    <tr>
+      <td class="kbgrid_th">第9节<br>016:00-016:45</td>
+      <td id="1-9"><div class="kbcontent1"></div></td>
+      <td id="3-9"><div class="kbcontent1"></div></td>
+      <td id="6-9"><div class="kbcontent1"></div></td>
+      <td id="7-9"><div class="kbcontent1"></div></td>
+    </tr>
+    <tr>
+      <td class="kbgrid_th">第10节<br>017:00-017:45</td>
+      <td id="1-10"><div class="kbcontent1"></div></td>
+      <td id="2-10"><div class="kbcontent1"></div></td>
+      <td id="3-10"><div class="kbcontent1"></div></td>
+      <td id="4-10"><div class="kbcontent1"></div></td>
+      <td id="5-10"><div class="kbcontent1"></div></td>
+      <td id="6-10"><div class="kbcontent1"></div></td>
+      <td id="7-10"><div class="kbcontent1"></div></td>
+    </tr>
+    <tr>
+      <td class="kbgrid_th">第11节<br>018:00-018:45</td>
+      <td id="1-11"><div class="kbcontent1"></div></td>
+      <td id="2-11"><div class="kbcontent1"></div></td>
+      <td id="3-11"><div class="kbcontent1"></div></td>
+      <td id="4-11"><div class="kbcontent1"></div></td>
+      <td id="5-11"><div class="kbcontent1"></div></td>
+      <td id="6-11"><div class="kbcontent1"></div></td>
+      <td id="7-11"><div class="kbcontent1"></div></td>
+    </tr>
+    <tr>
+      <td class="kbgrid_th">第12节<br>019:00-019:45</td>
+      <td id="1-12"><div class="kbcontent1"></div></td>
+      <td id="2-12"><div class="kbcontent1"></div></td>
+      <td id="3-12"><div class="kbcontent1"></div></td>
+      <td id="4-12"><div class="kbcontent1"></div></td>
+      <td id="5-12"><div class="kbcontent1"></div></td>
+      <td id="6-12"><div class="kbcontent1"></div></td>
+      <td id="7-12"><div class="kbcontent1"></div></td>
+    </tr>
+  </tbody>
+</table>
+</div>
