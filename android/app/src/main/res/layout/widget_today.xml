@@ -1,0 +1,172 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 2×2「今日课程」。
+     结构：头部（日期 + 星期 / 今天共几门）→ 最近一节课（课名 + 地点）→ 可滑动列表。
+
+     注意 AppWidget 的布局限制：只能用 RemoteViews 认识的那几种视图
+     （FrameLayout / LinearLayout / RelativeLayout / GridLayout + TextView /
+     ImageView / Button / ListView 等），没有 ConstraintLayout，
+     不能放自定义 View，也不能用 <include> 复用 —— 原因是下面这个 id 双写问题。
+     所以 widget_twoday.xml 里的两块面板是手抄的，不是 include 进来的。 -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/w_today_root"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:background="@drawable/widget_bg"
+    android:padding="10dp">
+
+    <LinearLayout
+        android:id="@+id/w_today_head"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="center_vertical">
+
+        <TextView
+            android:id="@+id/w_today_date"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:maxLines="1"
+            android:ellipsize="end"
+            android:textSize="12sp"
+            android:textStyle="bold"
+            android:textColor="@color/widget_ink" />
+
+        <TextView
+            android:id="@+id/w_today_count"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="6dp"
+            android:maxLines="1"
+            android:textSize="11sp"
+            android:textColor="@color/widget_accent" />
+    </LinearLayout>
+
+    <LinearLayout
+        android:id="@+id/w_today_focus"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="6dp"
+        android:orientation="vertical"
+        android:background="@color/widget_focus_bg"
+        android:paddingStart="8dp"
+        android:paddingEnd="8dp"
+        android:paddingTop="5dp"
+        android:paddingBottom="5dp">
+
+        <!-- 第 1 行：课名（占了剩下的宽度）+ 状态（正在上课 / 下一节） -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical">
+
+            <TextView
+                android:id="@+id/w_today_focus_name"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:maxLines="1"
+                android:ellipsize="end"
+                android:textSize="13sp"
+                android:textStyle="bold"
+                android:textColor="@color/widget_ink" />
+
+            <TextView
+                android:id="@+id/w_today_focus_state"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="6dp"
+                android:maxLines="1"
+                android:textSize="10sp"
+                android:textColor="@color/widget_accent" />
+        </LinearLayout>
+
+        <!-- 第 2 行：**教室 + 上课时间**，一行里左右各占一头。
+             时间单独给一列（而不是接在教室后面拼成一个字符串），是因为
+             2×2 这一行只有 ~110dp：拼起来末尾的「-11:30」会被 ellipsize 吃掉，
+             而用户要看的恰好就是它。拆成两列后教室可以自己缩，时间始终完整。
+             教室的省略号取 middle：截尾会正好切掉「401」这种门牌号。 -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical">
+
+            <TextView
+                android:id="@+id/w_today_focus_place"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:maxLines="1"
+                android:ellipsize="middle"
+                android:textSize="10sp"
+                android:textColor="@color/widget_ink2" />
+
+            <TextView
+                android:id="@+id/w_today_focus_time"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="6dp"
+                android:maxLines="1"
+                android:textSize="10sp"
+                android:textColor="@color/widget_accent" />
+        </LinearLayout>
+    </LinearLayout>
+
+    <!-- 「今天的课已上完」——只在「没有最近一节课」时出现（`focus.course == null`）。
+         它**不能借用上面那块面板**：面板里面两行是给「课名」与「教室 + 时间」排的，
+         拿它装一句状态词就会撑出一个两行高的空框，字还贴在左上角。
+         所以这里单独给一块，三条各有各的用途：
+           · layout_width=match_parent ⇒ **通栏**，左右边界与下面那些课程行**完全一致**：
+             课程行的宿主 ListView、以及上面那块焦点面板，宽度上下文都是「根内容区」，
+             三者本来就同宽。⚠️ **这里一旦加 layout_marginStart/End，就不再与课程对齐了** ——
+             要留白请改根布局的 padding（那是三处一起动）。
+           · layout_height=wrap_content + maxLines=1 + 纵向只留 3dp ⇒ **压成一行高**；
+             别再写成固定高度或加大纵向内边距，那正是「没内容还占一块大框」的来源。
+           · gravity=center ⇒ 字在框里**居中**（宽度通栏后就是左右居中；高度本来就等于一行，
+             垂直方向没有多余空间可居）。
+           · 横向内边距与上面那块面板取同一个值（8dp）⇒ 文字起点与面板里那两行对齐。
+         底色仍是 focus_bg，跟上面那块面板同一族颜色。 -->
+    <TextView
+        android:id="@+id/w_today_done"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="6dp"
+        android:background="@color/widget_focus_bg"
+        android:gravity="center"
+        android:maxLines="1"
+        android:paddingStart="8dp"
+        android:paddingEnd="8dp"
+        android:paddingTop="3dp"
+        android:paddingBottom="3dp"
+        android:textSize="11sp"
+        android:textStyle="bold"
+        android:textColor="@color/widget_ink"
+        android:visibility="gone" />
+
+    <!-- 可滑动的那一块。AppWidget 里让用户上下滑动只有这一条路：
+         ListView + setRemoteAdapter（collection widget） -->
+    <ListView
+        android:id="@+id/w_today_list"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:layout_marginTop="4dp"
+        android:divider="@null"
+        android:dividerHeight="0dp"
+        android:scrollbars="none" />
+
+    <!-- 空态 / 过期提示，与上面的列表互斥（visibility 切换） -->
+    <TextView
+        android:id="@+id/w_today_hint"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:layout_marginTop="4dp"
+        android:gravity="center"
+        android:textSize="11sp"
+        android:textColor="@color/widget_ink2"
+        android:visibility="gone" />
+</LinearLayout>

@@ -1,0 +1,320 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 4×2「今明日课程」：左右两栏，左今天、右明天，每栏与 widget_today 同构。
+
+     两块面板是**手抄**的，不是 include —— 这一点不是偷懒：
+     RemoteViews 全靠 viewId 定位视图，两栏若共用一份 include，
+     里面就会出现两套同名 id（w_date 有两个），setTextViewText 会打到
+     「先找到的那一个」上，表现成「明天的课写到了今天那一栏」。
+     所以两栏必须各有一套 id（w_t1_* / w_t2_*）。 -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/w_twoday_root"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="horizontal"
+    android:background="@drawable/widget_bg"
+    android:padding="8dp">
+
+    <!-- ================= 左栏：今天 ================= -->
+    <LinearLayout
+        android:id="@+id/w_t1_root"
+        android:layout_width="0dp"
+        android:layout_height="match_parent"
+        android:layout_weight="1"
+        android:orientation="vertical">
+
+        <LinearLayout
+            android:id="@+id/w_t1_head"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical">
+
+            <TextView
+                android:id="@+id/w_t1_date"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:maxLines="1"
+                android:ellipsize="end"
+                android:textSize="11sp"
+                android:textStyle="bold"
+                android:textColor="@color/widget_ink" />
+
+            <TextView
+                android:id="@+id/w_t1_count"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="4dp"
+                android:maxLines="1"
+                android:textSize="10sp"
+                android:textColor="@color/widget_accent" />
+        </LinearLayout>
+
+        <LinearLayout
+            android:id="@+id/w_t1_focus"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="5dp"
+            android:orientation="vertical"
+            android:background="@color/widget_focus_bg"
+            android:paddingStart="6dp"
+            android:paddingEnd="6dp"
+            android:paddingTop="4dp"
+            android:paddingBottom="4dp">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:gravity="center_vertical">
+
+                <TextView
+                    android:id="@+id/w_t1_focus_name"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:maxLines="1"
+                    android:ellipsize="end"
+                    android:textSize="12sp"
+                    android:textStyle="bold"
+                    android:textColor="@color/widget_ink" />
+
+                <TextView
+                    android:id="@+id/w_t1_focus_state"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="4dp"
+                    android:maxLines="1"
+                    android:textSize="9sp"
+                    android:textColor="@color/widget_accent" />
+            </LinearLayout>
+
+            <!-- 教室 + 上课时间：与 widget_today 同构（左教室、右时间，
+                 教室可缩、时间不能截） -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:gravity="center_vertical">
+
+                <TextView
+                    android:id="@+id/w_t1_focus_place"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:maxLines="1"
+                    android:ellipsize="middle"
+                    android:textSize="9sp"
+                    android:textColor="@color/widget_ink2" />
+
+                <TextView
+                    android:id="@+id/w_t1_focus_time"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="4dp"
+                    android:maxLines="1"
+                    android:textSize="9sp"
+                    android:textColor="@color/widget_accent" />
+            </LinearLayout>
+        </LinearLayout>
+
+        <!-- 「今天的课已上完」：**通栏、一行高、字居中**（理由与 widget_today 里那块同）。
+             宽度上下文是这一栏 ⇒ 与这一栏里的课程行同宽；加左右 margin 就不对齐了。 -->
+        <TextView
+            android:id="@+id/w_t1_done"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="5dp"
+            android:background="@color/widget_focus_bg"
+            android:gravity="center"
+            android:maxLines="1"
+            android:paddingStart="6dp"
+            android:paddingEnd="6dp"
+            android:paddingTop="2dp"
+            android:paddingBottom="2dp"
+            android:textSize="10sp"
+            android:textStyle="bold"
+            android:textColor="@color/widget_ink"
+            android:visibility="gone" />
+
+        <ListView
+            android:id="@+id/w_t1_list"
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_weight="1"
+            android:layout_marginTop="3dp"
+            android:divider="@null"
+            android:dividerHeight="0dp"
+            android:scrollbars="none" />
+
+        <TextView
+            android:id="@+id/w_t1_hint"
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_weight="1"
+            android:layout_marginTop="3dp"
+            android:gravity="center"
+            android:textSize="10sp"
+            android:textColor="@color/widget_ink2"
+            android:visibility="gone" />
+    </LinearLayout>
+
+    <!-- 两栏之间的竖分隔线。**必须是 TextView，不能是 <View>**：
+         RemoteViews 只 inflate 带 @RemoteView 注解的类，而 android.view.View
+         没有这个注解 —— 写成 <View> 会让整个布局 inflate 失败，
+         桌面上只留一句「载入窗口小部件时出现问题」，点击也不响应。
+         （用 javap 验过：View 的 @RemoteView 计数是 0，TextView / LinearLayout / ListView 都有。）
+         TextView 什么都不用写，给个底色就是一条线。 -->
+    <TextView
+        android:layout_width="1dp"
+        android:layout_height="match_parent"
+        android:layout_marginStart="8dp"
+        android:layout_marginEnd="8dp"
+        android:background="@color/widget_line" />
+
+    <!-- ================= 右栏：明天 ================= -->
+    <LinearLayout
+        android:id="@+id/w_t2_root"
+        android:layout_width="0dp"
+        android:layout_height="match_parent"
+        android:layout_weight="1"
+        android:orientation="vertical">
+
+        <LinearLayout
+            android:id="@+id/w_t2_head"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical">
+
+            <TextView
+                android:id="@+id/w_t2_date"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:maxLines="1"
+                android:ellipsize="end"
+                android:textSize="11sp"
+                android:textStyle="bold"
+                android:textColor="@color/widget_ink" />
+
+            <TextView
+                android:id="@+id/w_t2_count"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="4dp"
+                android:maxLines="1"
+                android:textSize="10sp"
+                android:textColor="@color/widget_accent" />
+        </LinearLayout>
+
+        <LinearLayout
+            android:id="@+id/w_t2_focus"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="5dp"
+            android:orientation="vertical"
+            android:background="@color/widget_focus_bg"
+            android:paddingStart="6dp"
+            android:paddingEnd="6dp"
+            android:paddingTop="4dp"
+            android:paddingBottom="4dp">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:gravity="center_vertical">
+
+                <TextView
+                    android:id="@+id/w_t2_focus_name"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:maxLines="1"
+                    android:ellipsize="end"
+                    android:textSize="12sp"
+                    android:textStyle="bold"
+                    android:textColor="@color/widget_ink" />
+
+                <TextView
+                    android:id="@+id/w_t2_focus_state"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="4dp"
+                    android:maxLines="1"
+                    android:textSize="9sp"
+                    android:textColor="@color/widget_accent" />
+            </LinearLayout>
+
+            <!-- 教室 + 上课时间：与 widget_today 同构（左教室、右时间，
+                 教室可缩、时间不能截） -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:gravity="center_vertical">
+
+                <TextView
+                    android:id="@+id/w_t2_focus_place"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:maxLines="1"
+                    android:ellipsize="middle"
+                    android:textSize="9sp"
+                    android:textColor="@color/widget_ink2" />
+
+                <TextView
+                    android:id="@+id/w_t2_focus_time"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="4dp"
+                    android:maxLines="1"
+                    android:textSize="9sp"
+                    android:textColor="@color/widget_accent" />
+            </LinearLayout>
+        </LinearLayout>
+
+        <!-- 「这天没有课」由 w_t2_hint 承担，这块只在真出现「已上完」时用；
+             两栏都留着，免得将来改动时以为左边那块漏了。
+             形状与 w_t1_done 一致：通栏、一行高、字居中。 -->
+        <TextView
+            android:id="@+id/w_t2_done"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="5dp"
+            android:background="@color/widget_focus_bg"
+            android:gravity="center"
+            android:maxLines="1"
+            android:paddingStart="6dp"
+            android:paddingEnd="6dp"
+            android:paddingTop="2dp"
+            android:paddingBottom="2dp"
+            android:textSize="10sp"
+            android:textStyle="bold"
+            android:textColor="@color/widget_ink"
+            android:visibility="gone" />
+
+        <ListView
+            android:id="@+id/w_t2_list"
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_weight="1"
+            android:layout_marginTop="3dp"
+            android:divider="@null"
+            android:dividerHeight="0dp"
+            android:scrollbars="none" />
+
+        <TextView
+            android:id="@+id/w_t2_hint"
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_weight="1"
+            android:layout_marginTop="3dp"
+            android:gravity="center"
+            android:textSize="10sp"
+            android:textColor="@color/widget_ink2"
+            android:visibility="gone" />
+    </LinearLayout>
+</LinearLayout>

@@ -1,0 +1,72 @@
+plugins {
+    id 'com.android.application'
+    id 'org.jetbrains.kotlin.android'
+}
+
+android {
+    // 正式包名（2026-10-06 由占位包名 com.example.schedule 改来，见发布前合规自查清单 §3）。
+    // ⚠️ 改包名 = 换了一个新应用：应用私有目录随之改变，已装用户的数据读不到、桌面小组件会失效。
+    //    所以这条**只能在上架前做一次，上架后永远别改**。工程无 git，改前已备份。
+    namespace 'cn.youke.schedule'
+    compileSdk 36          // Android 16
+
+    defaultConfig {
+        applicationId "cn.youke.schedule"
+        minSdk 26          // Android 8.0
+        targetSdk 36       // Android 16
+        versionCode 59
+        versionName "1.9.45"
+    }
+
+    // release 版使用本地 debug 密钥签名（自用/课程作业足够；正式上架请替换为自有 keystore）
+    signingConfigs {
+        release {
+            storeFile file(System.getProperty('user.home') + '/.android/debug.keystore')
+            storePassword 'android'
+            keyAlias 'androiddebugkey'
+            keyPassword 'android'
+        }
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled false
+            signingConfig signingConfigs.release
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+        }
+    }
+
+    // 课程作业场景下不因 lint 警告中断打包
+    lint {
+        abortOnError false
+        checkReleaseBuilds false
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+
+    kotlinOptions {
+        jvmTarget = '17'
+    }
+
+    // 关闭 PNG 自动压缩，assets 中的网页文件保持原样
+    // （webmanifest 也是网页文件：漏了它只有它会变成 DEFLATE，其余都是 STORED）
+    androidResources {
+        noCompress 'html', 'css', 'js', 'csv', 'json', 'webmanifest'
+    }
+
+    buildFeatures {
+        buildConfig = true
+    }
+
+    packagingOptions {
+        exclude 'META-INF/*.kotlin_module'
+    }
+}
+
+dependencies {
+    implementation 'androidx.core:core-ktx:1.16.0'
+    implementation 'androidx.activity:activity-ktx:1.10.1'
+}

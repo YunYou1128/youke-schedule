@@ -1,0 +1,137 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <!-- 课表本身完全离线：所有数据保存在本机。
+         只有「从教务系统导入」这个可选功能需要联网——
+         它会在应用内打开一个浏览器让用户自己登录学校教务系统。
+
+         ⚠️ 「保存在本机」的准确口径（v1.9.29 写明）：开启系统云备份 / 换机迁移时，
+         课表会随系统备份同步（见 android:allowBackup）。这不是外发到我们的服务器，
+         而是交给用户手机自己的备份体系；README「权限口径」里有同一句说明。 -->
+    <uses-permission android:name="android.permission.INTERNET" />
+
+    <!-- 分享课表时用「发送到聊天」把 .csv 发给同学，需要知道这几个应用装没装。
+         Android 11（API 30）起的**软件包可见性**限制：不在这里按包名声明，
+         packageManager 就查不到它们 —— 而且**返回空列表、不抛异常**
+         （症状是「明明装了微信却提示未安装」，极难查）。
+         这里只声明包名，不申请任何权限；分享用的 content:// Uri 由自家
+         FileProvider 给出、读取权随那次 Intent 单独授予。 -->
+    <queries>
+        <package android:name="com.tencent.mm" />
+        <package android:name="com.tencent.mobileqq" />
+        <package android:name="com.alibaba.android.rimet" />
+    </queries>
+
+    <!-- ==================== 两条「已知情的取舍」（v1.9.29 写清） ====================
+
+         ① android:usesCleartextTraffic="true" —— **刻意允许明文连接，不是漏了**。
+            国内不少高校教务至今仍是 http（或页面里混用 http 资源）。这个 App 的产品定位是
+            「支持任意学校、用户自建地址」（学校列表是地址簿，换学校永不改解析器），
+            若收窄成「默认禁明文 + 只放行本校」，外校 http 教务会**直接连不上**；
+            要兼容就得再做一条「该站点是 http，可能被窃听，是否继续」的 UI，
+            那是**一条带 UI 的功能**、不是配置改动。所以维持现状，并如实写在
+            README「权限口径」里 —— 把「未收口」变成「已说明的设计取舍」。
+
+         ② android:allowBackup="true" —— **保留**。课表是用户攒出来的，「换机不丢」
+            比「数据绝不离开设备」更值钱；云备份会带走课表这一点已在 README 写明，
+            而且排掉了教务浏览器的痕迹文件（见 backup_rules.xml / data_extraction_rules.xml）。
+         ============================================================================ -->
+    <application
+        android:allowBackup="true"
+        android:fullBackupContent="@xml/backup_rules"
+        android:dataExtractionRules="@xml/data_extraction_rules"
+        android:icon="@mipmap/ic_launcher"
+        android:roundIcon="@mipmap/ic_launcher_round"
+        android:label="@string/app_name"
+        android:supportsRtl="true"
+        android:hardwareAccelerated="true"
+        android:usesCleartextTraffic="true"
+        android:theme="@style/Theme.ScheduleApp">
+
+        <activity
+            android:name=".MainActivity"
+            android:exported="true"
+            android:configChanges="orientation|screenSize|screenLayout|keyboardHidden|smallestScreenSize|density|uiMode|fontScale"
+            android:windowSoftInputMode="adjustResize"
+            android:launchMode="singleTop">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+
+        <!-- 内嵌教务浏览器：用户在这里自己登录学校教务系统并导入课表 -->
+        <activity
+            android:name=".EduLoginActivity"
+            android:exported="false"
+            android:configChanges="orientation|screenSize|screenLayout|keyboardHidden|smallestScreenSize|density|uiMode|fontScale"
+            android:windowSoftInputMode="adjustResize"
+            android:theme="@style/Theme.ScheduleApp.Edu" />
+
+        <!-- 「把页面交回来」功能用：长按「怎么用」导出的排查页面，要能通过
+             「分享」发给开发者。Android 10+ 走 MediaStore 拿 content:// Uri，
+             这里只是给 Android 9 及以下（文件落在应用私有目录）兜底。
+             FileProvider 不新增任何权限，也不对外暴露目录。 -->
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.fileprovider"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/file_paths" />
+        </provider>
+
+        <!-- ==================== 桌面小组件 ====================
+             两个组件必须是**两个 receiver**：一个 <receiver> 只能挂一份
+             appwidget.provider 元数据，而尺寸、名称、初始布局都写在那里。
+             又因为刷新是按 ComponentName（包名 + 类名）找组件的，
+             两个 receiver 指向同一个类会撞名 —— 所以是两个空子类，
+             逻辑都在 BaseWidgetProvider 里（见 WidgetProvider.kt）。
+
+             exported="true"（v1.9.44 从 false 改回来，红米 / HyperOS 上「小部件
+             列表里找不到柚课」就是这个属性挡的）：桌面（com.miui.home 等）是
+             **另一个应用**，它要按 ComponentName 枚举组件、再给组件发绑定 /
+             更新广播。AOSP 官方示例写的是 false（系统广播确实有豁免），但
+             定制 ROM 在「枚举选择列表」这一步会按 exported 过滤，于是组件
+             根本不出现 —— 这是小米一线有实证的踩坑点，所以这里取 true。
+             放开是安全的：本 receiver 只挂 APPWIDGET_UPDATE 一个 action，
+             onUpdate 只做一次重画（不改数据、不读 Intent extra），第三方应用
+             最多能把它重画一遍；也**没有为此新增任何权限**（清单里仍只有
+             INTERNET 一条）。 -->
+        <receiver
+            android:name=".WidgetTodayProvider"
+            android:exported="true"
+            android:label="@string/widget_today_label">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/widget_today_info" />
+        </receiver>
+
+        <receiver
+            android:name=".WidgetTwoDayProvider"
+            android:exported="true"
+            android:label="@string/widget_twoday_label">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/widget_twoday_info" />
+        </receiver>
+
+        <!-- 小组件里「可以上下滑动」的那个列表的数据源。
+             BIND_REMOTEVIEWS 是硬要求：AppWidget 宿主（桌面）要绑这个
+             Service 才能拿到列表项，不声明它，列表永远不出来。
+             该权限是 signature 级，所以 exported="true" 不等于对外开放 ——
+             只有系统进程能绑。 -->
+        <service
+            android:name=".WidgetListService"
+            android:exported="true"
+            android:permission="android.permission.BIND_REMOTEVIEWS" />
+    </application>
+
+</manifest>

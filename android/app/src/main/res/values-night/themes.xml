@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <style name="Theme.ScheduleApp" parent="@android:style/Theme.Material.NoActionBar">
+        <item name="android:statusBarColor">@android:color/transparent</item>
+        <item name="android:navigationBarColor">@android:color/transparent</item>
+        <item name="android:windowLightStatusBar">false</item>
+        <item name="android:windowBackground">@android:color/black</item>
+    </style>
+
+    <style name="Theme.ScheduleApp.Edu" parent="Theme.ScheduleApp">
+        <item name="android:statusBarColor">@color/edu_surface</item>
+        <item name="android:navigationBarColor">@color/edu_surface</item>
+        <item name="android:windowBackground">@color/edu_bg</item>
+    </style>
+</resources>

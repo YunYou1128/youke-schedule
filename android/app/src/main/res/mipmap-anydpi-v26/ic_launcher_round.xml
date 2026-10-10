@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 柚课 · 圆形启动图标（部分启动器 / 渠道要求圆形版）。
+     与 ic_launcher.xml 同一套图层：形状由系统遮罩决定，这里不画圆。 -->
+<adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">
+    <background android:drawable="@drawable/ic_launcher_background" />
+    <foreground android:drawable="@mipmap/ic_launcher_foreground" />
+</adaptive-icon>

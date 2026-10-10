@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- 无 ActionBar，状态栏与导航栏透明（由 MainActivity 统一处理安全区） -->
+    <style name="Theme.ScheduleApp" parent="@android:style/Theme.Material.Light.NoActionBar">
+        <item name="android:statusBarColor">@android:color/transparent</item>
+        <item name="android:navigationBarColor">@android:color/transparent</item>
+        <item name="android:windowLightStatusBar">true</item>
+        <item name="android:windowBackground">@android:color/white</item>
+    </style>
+
+    <!-- 内嵌教务浏览器：系统栏用表面色（页面里再按 WindowInsets 让位） -->
+    <style name="Theme.ScheduleApp.Edu" parent="Theme.ScheduleApp">
+        <item name="android:statusBarColor">@color/edu_surface</item>
+        <item name="android:navigationBarColor">@color/edu_surface</item>
+        <item name="android:windowBackground">@color/edu_bg</item>
+    </style>
+</resources>

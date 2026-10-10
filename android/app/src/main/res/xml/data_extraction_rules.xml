@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Android 12+：允许云端备份与设备迁移时保留课表数据。
+
+     备份口径见 backup_rules.xml 的说明（保留 allowBackup、排掉教务浏览器痕迹）。
+     这里 `cloud-backup`（云备份）与 `device-transfer`（换机迁移）是两套独立规则，
+     两边都要各自写一遍 exclude —— 只写一边的话，另一条路照样会把 edu_browser.xml 带走。
+     ⚠️ `path` 是**文件名（带 `.xml`）**，不是目录。
+-->
+<data-extraction-rules>
+    <cloud-backup>
+        <include
+            domain="file"
+            path="app_webview" />
+        <include
+            domain="database"
+            path="." />
+        <include
+            domain="sharedpref"
+            path="." />
+        <exclude
+            domain="sharedpref"
+            path="edu_browser.xml" />
+    </cloud-backup>
+    <device-transfer>
+        <include
+            domain="file"
+            path="app_webview" />
+        <include
+            domain="database"
+            path="." />
+        <include
+            domain="sharedpref"
+            path="." />
+        <exclude
+            domain="sharedpref"
+            path="edu_browser.xml" />
+    </device-transfer>
+</data-extraction-rules>

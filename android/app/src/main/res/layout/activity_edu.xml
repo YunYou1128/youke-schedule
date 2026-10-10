@@ -1,0 +1,195 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  内嵌教务浏览器（v1.9.43 起只剩一条导入通道）。
+  顶栏：返回 / 地址栏 / 缩小 / 放大 / 刷新
+  提示条：三步走（登录 → 翻到课表页 → 执行导入），进门读一次，留在顶部
+  底栏：**只有「执行导入」那一栏**（v1.9.43 从顶部下移到这里，拇指够得到）；
+        没选中适配脚本时它是 GONE，此时底栏只剩承接导航栏 inset 的一条底色。
+
+  v1.9.43 删掉了原来的底栏三件套「适应屏幕 / 怎么用 / 导入课表」：
+  前两个是界面辅助，第三个是自研抓页那条通道的入口 —— 那条通道整条拆掉了
+  （留档见 留档/课表导入-自研抓页-v1.9.43/）。
+
+  工具栏不做固定状态栏占位，状态栏的实际高度在 EduLoginActivity 里
+  通过 WindowInsets 动态加到顶部栏的 paddingTop 上
+  （Android 15+ 强制 edge-to-edge，原生侧必须自己让出系统栏）；
+  导航栏那一份加在底栏容器上，容器常驻 —— 否则没有适配脚本时
+  没人让位，内容会钻到手势条下面去。
+-->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/eduRoot"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:background="@color/edu_bg">
+
+    <LinearLayout
+        android:id="@+id/eduToolbar"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:background="@color/edu_surface"
+        android:paddingStart="6dp"
+        android:paddingEnd="6dp"
+        android:paddingTop="6dp"
+        android:paddingBottom="6dp">
+
+        <TextView
+            android:id="@+id/btnEduBack"
+            style="@style/EduToolBtn"
+            android:text="返回" />
+
+        <EditText
+            android:id="@+id/eduUrl"
+            android:layout_width="0dp"
+            android:layout_height="38dp"
+            android:layout_weight="1"
+            android:layout_marginStart="6dp"
+            android:layout_marginEnd="6dp"
+            android:background="@drawable/bg_edu_input"
+            android:hint="教务系统网址"
+            android:imeOptions="actionGo"
+            android:inputType="textUri"
+            android:maxLines="1"
+            android:paddingStart="10dp"
+            android:paddingEnd="10dp"
+            android:selectAllOnFocus="false"
+            android:textColor="@color/edu_ink"
+            android:textColorHint="@color/edu_ink2"
+            android:textSize="12.5sp"
+            android:importantForAutofill="no" />
+
+        <TextView
+            android:id="@+id/btnEduZoomOut"
+            style="@style/EduToolBtn"
+            android:layout_marginStart="2dp"
+            android:contentDescription="缩小"
+            android:minWidth="38dp"
+            android:paddingStart="0dp"
+            android:paddingEnd="0dp"
+            android:text="－"
+            android:textSize="16sp" />
+
+        <TextView
+            android:id="@+id/btnEduZoomIn"
+            style="@style/EduToolBtn"
+            android:layout_marginStart="4dp"
+            android:contentDescription="放大"
+            android:minWidth="38dp"
+            android:paddingStart="0dp"
+            android:paddingEnd="0dp"
+            android:text="＋"
+            android:textSize="16sp" />
+
+        <TextView
+            android:id="@+id/btnEduReload"
+            style="@style/EduToolBtn"
+            android:layout_marginStart="4dp"
+            android:text="刷新" />
+    </LinearLayout>
+
+    <ProgressBar
+        android:id="@+id/eduProgress"
+        style="?android:attr/progressBarStyleHorizontal"
+        android:layout_width="match_parent"
+        android:layout_height="2dp"
+        android:max="100"
+        android:progressTint="@color/edu_accent"
+        android:visibility="invisible" />
+
+    <!--
+      顶部提示条：进门读一次的三步走。
+      **留在顶部**（v1.9.43）：信息在顶、动作在底，两件事分开摆最不容易点错。
+      文案由 EduLoginActivity 按「有没有适配脚本」两种口径填。
+    -->
+    <LinearLayout
+        android:id="@+id/eduTip"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:background="@color/edu_surface2"
+        android:paddingStart="12dp"
+        android:paddingEnd="6dp"
+        android:paddingTop="8dp"
+        android:paddingBottom="8dp">
+
+        <TextView
+            android:id="@+id/eduTipText"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:lineSpacingExtra="2dp"
+            android:textColor="@color/edu_ink2"
+            android:textSize="11.5sp" />
+
+        <TextView
+            android:id="@+id/btnEduTipClose"
+            style="@style/EduToolBtn"
+            android:text="知道了" />
+    </LinearLayout>
+
+    <WebView
+        android:id="@+id/eduWebView"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:background="@color/edu_bg" />
+
+    <!--
+      底栏容器。**常驻**，哪怕里面那一栏是 GONE —— 它负责把导航栏的
+      inset 让出来（见 applyInsets）。让它跟着一起消失的话，
+      没有适配脚本时网页内容会钻到系统手势条底下。
+    -->
+    <LinearLayout
+        android:id="@+id/eduBottom"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:background="@color/edu_surface">
+
+        <!--
+          适配条。选中社区适配库里的某所学校时出现，写明「正在跑哪一段脚本、
+          谁维护的」，并给出这一趟的动作：执行导入 / 停止。
+
+          v1.9.43 从顶部挪到这里 —— 这是整页唯一的动作，放在拇指区。
+          它不再兼「兜底通道的说明」，因为兜底那条（自研抓页）已经拆掉了。
+        -->
+        <LinearLayout
+            android:id="@+id/eduAdapterBar"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:background="@color/edu_surface2"
+            android:paddingStart="12dp"
+            android:paddingEnd="8dp"
+            android:paddingTop="8dp"
+            android:paddingBottom="8dp"
+            android:visibility="gone">
+
+            <TextView
+                android:id="@+id/eduAdapterText"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:lineSpacingExtra="2dp"
+                android:textColor="@color/edu_ink"
+                android:textSize="11.5sp" />
+
+            <TextView
+                android:id="@+id/btnEduAdapterStop"
+                style="@style/EduToolBtn"
+                android:layout_marginStart="6dp"
+                android:text="停止"
+                android:visibility="gone" />
+
+            <TextView
+                android:id="@+id/btnEduAdapterRun"
+                style="@style/EduPrimaryBtn"
+                android:layout_marginStart="6dp"
+                android:text="执行导入" />
+        </LinearLayout>
+    </LinearLayout>
+</LinearLayout>

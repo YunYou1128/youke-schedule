@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- 桌面 / 设置里显示的应用名。注意：这个名字同时是合规面向上的品牌标识，
+         改名或调整用字前先过一遍《发布前合规自查清单.md》的「应用名」条目。 -->
+    <string name="app_name">柚课</string>
+
+    <!-- 桌面小组件：label 是「添加小组件」列表里显示的名字，desc 是它的说明 -->
+    <string name="widget_today_label">今日课程</string>
+    <string name="widget_today_desc">今天的课：最近一节课的地点，上下滑动看其余</string>
+    <string name="widget_twoday_label">今明日课程</string>
+    <string name="widget_twoday_desc">今天和明天两天的课，左右各一栏</string>
+</resources>

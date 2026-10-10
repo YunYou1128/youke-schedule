@@ -1,0 +1,1974 @@
+/* ============================================================
+   柚课 - 样式表
+   设计目标：移动端优先、干净整洁、一屏看全一周
+   ------------------------------------------------------------
+   布局约束（对应需求）：
+   1. 顶部 / 底部让出系统状态栏与导航栏（--safe-top / --safe-bottom）
+   2. 一个屏幕恰好容纳 8 节课，其余纵向滚动（JS 动态计算 --row-h）
+   3. 周一~周日七列在同一屏内完整展示，不横向滚动
+   4. 课表区域支持左右滑动切换周次
+   5. 课程卡片默认只显示「课程名 + 教室」，其余信息点击后查看
+   6. 课程详情弹层向下拖拽可关闭（.sheet-grip 是拖拽把手）
+   7. 表单型的界面（编辑时间表）用整页 .mask-page，不用底部弹层
+   ============================================================ */
+
+/* ============================================================
+   主题
+   ------------------------------------------------------------
+   两套主题令牌都在这里定义，页面通过 <html data-theme="light|dark">
+   切换。「跟随系统」由 JS 解析成 light/dark 后再写入该属性，
+   因此 CSS 不需要重复维护一份 @media (prefers-color-scheme) 规则。
+   data-theme 由 <head> 里的内联脚本在首帧前写好，避免闪白/闪黑。
+   ============================================================ */
+:root,
+:root[data-theme="light"] {
+  /* 安全区：优先由 Android 原生通过 JS 桥写入实际像素值，
+     浏览器环境回退到 CSS env()（viewport-fit=cover 时生效） */
+  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+  --safe-left: env(safe-area-inset-left, 0px);
+  --safe-right: env(safe-area-inset-right, 0px);
+
+  /* ---- 品牌色（v1.9.12）----
+     主色从「通用蓝 #4a6cf7」换成**柚子绿 #3e7c2e**：取自应用图标里那颗柚子的
+     叶绿（#7DB25C），再往深里压，压到能在白底上读清楚为止。
+
+     为什么必须压深：这个令牌**身兼两职** —— 既当填充底色（「今天」日期块、主按钮、
+     开关，配 --on-accent 白字），又当**文字颜色**直接压在 --surface 上（今天星期几的
+     标签、页头的「保存」、顶栏的信息片）。所以它要同时满足「白字压上去 ≥ 4.5:1」和
+     「自己当文字 ≥ 4.5:1」，两条都过的下限就是 #3e7c2e（对白 5.09:1，对浅绿软底
+     #edf4e4 4.52:1）。图标的柚黄 #F9D06F 只能当底色：它当文字色压在白底上只有
+     2.06:1，等于看不见 —— 所以品牌里的黄留给了图标本身，界面主色用绿。
+
+     中性色同时从冷蓝灰整体调暖（--bg / --surface / --ink / --line），呼应图标的
+     奶油底 #FAEDDB：冷蓝灰的界面配一颗暖绿主色，会显得是两套东西拼在一起。 */
+  --bg: #f5efe3;
+  --surface: #fffdf8;
+  --surface-2: #f6f1e7;
+  --ink: #241e16;
+  --ink-2: #6a6152;
+  --ink-3: #a69b87;
+  --line: #efe8d9;
+  --line-strong: #dfd5c1;
+  --accent: #3e7c2e;
+  --accent-soft: #edf4e4;
+  --danger: #e5484d;
+  /* 行内删除按钮的底色。**两个主题共用这一个值**（不在深色块里覆盖）：
+     --danger 在深色下是 #ff6b6f，白字压上去只有 2.5:1，糊成一片；
+     破坏性操作的红本来就该稳，iOS 也是两个主题同一个红。这里白字 4.8:1。 */
+  --del-bg: #d92d33;
+  /* 遮罩与浮层也一并转暖（原来是冷藏青 rgba(12,18,32)），否则弹层一出来
+     又把界面拽回冷色那边。 */
+  --mask: rgba(42, 33, 21, .45);
+  --on-accent: #ffffff;
+  --toast-bg: rgba(43, 35, 25, .94);
+  --toast-ink: #ffffff;
+
+  --time-col: 38px;
+  --row-h: 56px;          /* JS 会按「一屏 8 节」重算 */
+  --radius: 9px;
+  --shadow: 0 1px 2px rgba(20, 30, 60, .05);
+
+  /* 列与列之间的留白（v1.9.11）—— **相邻两天的卡片靠它分开**。
+     它曾经是 0，含义是「七列底色无缝拼成一整块底面」；去线改版后各列底色
+     已经全透明、底面由 .schedule 一块铺满，所以这个值早就不管底色拼接了，
+     它只剩一个作用：把相邻两天的卡片推开。
+
+     缝的真实宽度 = --col-gap + 2×--card-pad-x − 2×--card-edge-w：
+     卡片左右各内缩 pad-x，而包边是**向外扩的 box-shadow**，又各吃掉 edge-w。
+     v1.9.10 及以前是 0 + 4 − 4 = **0** ⇒ 两条包边严丝合缝贴在一起，
+     看上去就是一条 4px 粗的深灰线压在两个色块中间（用户报的「描边重合」）。
+     现在 3 + 4 − 4 = 3px 净缝，两条边各自独立、中间露得出底面。 */
+  --col-gap: 3px;
+  /* 卡片与泳道边缘的留白，**横纵分开**（v1.9.11 从 --card-pad 一个值拆成两个）：
+     · x 参与上面那道列缝的宽度；
+     · y 管同一列里上下相邻两节课的缝，同样是「2×pad-y − 2×edge-w」，
+       取 3px ⇒ 净缝 2px。
+     纵向刻意比横向窄 1px：人眼对横缝（水平线）更敏感，两边取值一样宽时
+     上下看起来反而更空。 */
+  --card-pad-x: 2px;
+  --card-pad-y: 3px;
+
+  /* 课程卡的包边（v1.9.9 起**颜色跟着主题走**，不再是「两个主题都用白」）。
+     白天浅暖灰 #a89a86、夜晚纯白 #fff，两个主题各声明一次（夜晚那处在下面的
+     :root[data-theme="dark"] 块里），宽度共用这里的 --card-edge-w。
+
+     白天这一档的演进，三次都是「用量的办法发现 CSS 看不出来的问题」：
+     ①v1.9.7 白边 —— 压在纯白底面上是「白压白」，等于没画；
+     ②v1.9.9~v1.9.12 深灰 #3a3a3c → 暖深灰 #3a342b —— 边界是清楚了，
+       但那是 **12.11:1** 的一道近黑线，压在鲜艳色块外圈，跟卡片本身毫无关系，
+       用户看下来就是「黑色描边有点突兀」（v1.9.13 报的）；
+     ③现在这档浅暖灰 —— 对底面 **2.71:1**、对 --bg **2.40:1**，
+       约等于一条 divider 的量级：边界仍在，但不再是黑框。
+     代价要先说清楚：浅暖灰的亮度（≈155）会撞进鲜艳卡片的亮度区间
+     （12 档卡片底色亮度 78~227，其中橙 h=30 是 165、蓝 h=210 是 140），
+     个别卡片那一侧会有点「融」。这可以接受——卡片与底面的边界本来就靠
+     「鲜艳色 vs 近白」自己成立，包边只是补强，不是唯一边界。
+
+     画法用 box-shadow 的外描边而不是 border：`* { box-sizing: border-box }`，
+     真加 border 会从内容盒里扣走 2px×2，而课程名的「一行三个字」宽度只有
+     37px - 34.5px ≈ 2.5px 的余量，一扣就退回两行。box-shadow 不参与布局。
+     （v1.9.8 曾试过「白边 + 外圈 1px 暗线」两层，一层的活儿用两层干、
+     还把宽度预算算复杂了，v1.9.9 就撤掉了，别再捡。） */
+  --card-edge: #a89a86;
+  --card-edge-w: 2px;
+
+  --fs-name: 11.5px;
+  --fs-meta: 10px;
+  --fs-head: 11.5px;
+
+  color-scheme: light;
+}
+
+:root[data-theme="dark"] {
+  /* 夜晚也一并转暖：原来的三个「表面色」都是带蓝的冷黑，
+     换成暖黑（红 > 绿 > 蓝的衰减顺序），跟白天的奶油调子接得上。 */
+  --bg: #16130d;
+  --surface: #1d1913;
+  --surface-2: #241f17;
+  --ink: #f1ebdf;
+  --ink-2: #a79e8c;
+  --ink-3: #6f6858;
+  --line: #2a251c;
+  --line-strong: #383225;
+  /* 夜晚的主色是同一颗柚子绿的提亮版：深底上要够亮（对 --surface 9.11:1），
+     同时当文字色也不刺眼。--on-accent 取暖黑（对主色 9.81:1）。 */
+  --accent: #8fcb6e;
+  --accent-soft: #232c19;
+  --danger: #ff6b6f;
+  --mask: rgba(0, 0, 0, .58);
+  --on-accent: #14110c;
+  --toast-bg: rgba(241, 235, 223, .95);
+  --toast-ink: #17130d;
+  --shadow: 0 1px 2px rgba(0, 0, 0, .4);
+
+  /* 包边在夜晚是纯白：底面 #1d1913 够深（亮度 ≈ 26），白边自己就清清楚楚。
+     这正是 v1.9.7 那条白边唯一真正看得见的场合；v1.9.9 起它只属于夜晚。 */
+  --card-edge: #fff;
+
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+
+html, body {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+  overflow: hidden;
+}
+
+body {
+  /* body 用表面色：让状态栏 / 导航栏所在的留白区域与顶栏同色，视觉上连成一体 */
+  background: var(--surface);
+  color: var(--ink);
+  font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Noto Sans SC",
+    "Microsoft YaHei", "Source Han Sans SC", "Helvetica Neue", Arial, sans-serif;
+  font-size: 14px;
+  line-height: 1.4;
+  -webkit-font-smoothing: antialiased;
+  -webkit-text-size-adjust: 100%;
+}
+
+button { font-family: inherit; color: inherit; cursor: pointer; }
+
+/* ============================================================
+   1. 应用外框：顶部/底部按安全区留白，避免压住状态栏与导航栏
+   ============================================================ */
+#app {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  height: 100dvh;
+  padding: var(--safe-top) var(--safe-right) var(--safe-bottom) var(--safe-left);
+  background: var(--surface);
+}
+
+/* ---------------- 顶部信息栏 ---------------- */
+.topbar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px 7px;
+  background: var(--surface);
+  flex: none;
+}
+
+.tb-info { flex: 1; min-width: 0; }
+
+.tb-line1 {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+  overflow: hidden;
+}
+
+.tb-week {
+  font-size: 17px;
+  font-weight: 700;
+  letter-spacing: .2px;
+}
+
+/* 周一~周日同屏 + 课表切换器：右侧周次信息不参与收缩 */
+.tb-line1 .tb-week,
+.tb-line1 .chip { flex: none; }
+
+.tb-line2 {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 2px;
+  font-size: 11.5px;
+  color: var(--ink-2);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.tb-line2 .sep { color: var(--ink-3); flex: none; }
+
+/* 日期与星期优先完整显示；「共 N 周 / 距开学 N 天」是补充信息，空间不足时先省略它 */
+.tb-line2 > span:not(.term):not(.sep) { flex: none; }
+
+.chip {
+  display: inline-block;
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--ink-2);
+  white-space: nowrap;
+}
+
+.chip-accent {
+  background: var(--accent-soft);
+  border-color: transparent;
+  color: var(--accent);
+  font-weight: 600;
+}
+
+/* 开学前没有「单/双周」可显示，直接收起来，避免无谓占用顶栏宽度 */
+.chip.is-off { display: none; }
+
+/* 图标按钮：省出横向空间，保证顶部信息不被挤压 */
+.tb-actions { display: flex; gap: 6px; flex: none; }
+
+.icon-btn {
+  width: 34px;
+  height: 34px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  border-radius: 10px;
+  background: var(--surface-2);
+  color: var(--ink-2);
+  padding: 0;
+}
+
+.icon-btn svg {
+  width: 18px;
+  height: 18px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.9;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.icon-btn:active { background: var(--accent-soft); color: var(--accent); }
+
+/* 白天 / 夜晚开关挪到周次栏之后，尺寸跟着这一行收小一号（与 ‹ › 两个按钮齐平）。
+   这里要盖掉 .icon-btn 的「无边框 + 浅底」——在一排描边按钮中间留一块浅底会很突兀。 */
+.weekbar .icon-btn {
+  width: 30px;
+  height: 30px;
+  border-radius: 9px;
+  border: 1px solid var(--line-strong);
+  background: var(--surface);
+}
+
+.weekbar .icon-btn svg { width: 16px; height: 16px; }
+
+/* ---------------- 周次切换栏 ---------------- */
+.weekbar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 10px 8px;
+  background: var(--surface);
+  border-bottom: 1px solid var(--line);
+  flex: none;
+}
+
+.nav-btn {
+  width: 30px;
+  height: 30px;
+  border-radius: 9px;
+  border: 1px solid var(--line-strong);
+  background: var(--surface);
+  font-size: 16px;
+  line-height: 1;
+  color: var(--ink-2);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+}
+
+.nav-btn:active { background: var(--surface-2); }
+
+.weekbar-center {
+  flex: 1;
+  min-width: 0;
+  text-align: center;
+  font-size: 13.5px;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.weekbar-center .sub { font-size: 11px; font-weight: 400; color: var(--ink-2); margin-left: 5px; }
+
+.btn {
+  border: 1px solid var(--line-strong);
+  background: var(--surface);
+  border-radius: 8px;
+  padding: 6px 10px;
+  font-size: 12.5px;
+  color: var(--ink-2);
+  white-space: nowrap;
+}
+
+.btn:active { background: var(--surface-2); }
+
+.btn-mini { padding: 5px 9px; font-size: 12px; border-radius: 9px; flex: none; }
+
+.btn-primary {
+  background: var(--accent);
+  border-color: transparent;
+  color: var(--on-accent);
+  font-weight: 600;
+}
+
+.btn-primary:active { filter: brightness(.94); }
+
+.btn-danger { color: var(--danger); border-color: var(--danger); background: transparent; }
+
+/* 导入弹层里「打开教务系统导入」这类整行主按钮 */
+.btn-block {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  width: 100%;
+  padding: 11px 12px;
+  font-size: 13.5px;
+  border-radius: 10px;
+}
+
+.btn .bi {
+  width: 16px;
+  height: 16px;
+  flex: none;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.7;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+/* ============================================================
+   2 & 3. 课表区域：纵向滚动，七列均分不横向滚动
+   ============================================================ */
+.grid-wrap {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  background: var(--bg);
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+  /* 横向手势交给 JS（切换周次），纵向仍由浏览器滚动 */
+  touch-action: pan-y;
+}
+
+/* 底部渐隐：提示下方还有课程。
+   底色取自课表底面（--surface），让内容像是自然淡出到整块底面里；
+   若用页面底色（--bg），会在白色底面上横出一条灰色渐变带。 */
+.scroll-fade {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: var(--safe-bottom);
+  height: 22px;
+  pointer-events: none;
+  background: linear-gradient(to top, var(--surface), rgba(0, 0, 0, 0));
+  opacity: 0;
+  transition: opacity .2s ease;
+}
+
+.scroll-fade.show { opacity: 1; }
+
+/* 整块底面
+   ------------------------------------------------------------
+   从天列到时间列、从表头到底部，统一由 .schedule 铺一块 --surface，
+   各列自身不再画底色。这样「一体」是结构本身保证的，
+   而不是靠 8 列背景色刚好相同拼出来的 —— 拼接法在列交界处
+   一旦出现亚像素缝隙或圆角，面就被切开了。
+   ------------------------------------------------------------ */
+.schedule {
+  width: 100%;
+  background: var(--surface);
+  border-radius: var(--radius);
+  will-change: transform;
+}
+
+.schedule.slide-from-right { animation: slideFromRight .24s ease-out both; }
+.schedule.slide-from-left  { animation: slideFromLeft .24s ease-out both; }
+
+@keyframes slideFromRight {
+  from { transform: translateX(22%); opacity: .3; }
+  to   { transform: translateX(0);   opacity: 1; }
+}
+
+@keyframes slideFromLeft {
+  from { transform: translateX(-22%); opacity: .3; }
+  to   { transform: translateX(0);    opacity: 1; }
+}
+
+/* 表头：星期 + 日期（七列等宽，无最小宽度 -> 不横向滚动）
+   不画下边线；底色取与整块底面相同的 --surface，
+   所以吸顶时既遮得住滚上来的课程卡片，又和下方连成一片、看不出接缝 */
+.head-row {
+  display: grid;
+  grid-template-columns: var(--time-col) repeat(7, minmax(0, 1fr));
+  column-gap: var(--col-gap);
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  background: var(--surface);
+}
+
+/* 左上角（时间列位置）：透明，露出表头的底色，与整块底面一致 */
+.corner { background: transparent; }
+
+.day-head {
+  padding: 6px 0 5px;
+  text-align: center;
+  line-height: 1.2;
+  min-width: 0;
+}
+
+.day-head .dw { display: block; font-size: var(--fs-head); font-weight: 600; color: var(--ink-2); }
+
+.day-head .dd {
+  display: block;
+  font-size: 10.5px;
+  color: var(--ink-3);
+  font-variant-numeric: tabular-nums;
+  margin-top: 2px;
+}
+
+.day-head.is-today .dw { color: var(--accent); font-weight: 700; }
+
+/* 「今天」的日期底色块（v1.9.10）
+   ------------------------------------------------------------
+   以前是个 20×20 的圆点。问题是**它按尺寸而不是按内容定宽**：日期文字
+   「10/2」在 10.5px + tabular-nums 下就宽 22.66px，比圆点宽 2.66px，
+   于是文字从右侧支出去一截 —— 看上去就是「标注得不完全」，而不是「圆了」。
+   日期最长能到「12/31」（28.5px），圆点更兜不住。
+
+   改法两条，缺一不可：
+   1. **宽度跟着文字走** —— `width: fit-content` + 左右 padding，不再写死 px。
+      不用 `display: inline-block` 是因为它要参与行内格式化上下文，会被
+      基线对齐牵着走、给表头多顶出几个 px；block + `margin: auto` 的老办法
+      在这套布局里已经验证过居中可靠，就别动它。
+   2. **`min-width` 兜住最短的日期** —— 「9/1」只有 16.8px，光靠 padding
+      会缩成 24.8px 的方块，又变回「圆」了。26px 是它的地板。
+   形状是矩形（30.66 × 18），四角 5px 圆角：够柔和，又没柔到变成胶囊。
+   height 从 20 降到 18，是为了让「宽 > 高」这个矩形感更明确。 */
+.day-head.is-today .dd {
+  width: fit-content;
+  min-width: 26px;
+  height: 18px;
+  line-height: 18px;
+  margin: 2px auto 0;
+  padding: 0 4px;
+  border-radius: 5px;
+  background: var(--accent);
+  color: var(--on-accent);
+  font-weight: 600;
+}
+
+/* 主体：左时间列 + 七天列
+   横向列间距与表头保持一致，保证表头文字与下方列严格对齐 */
+.body {
+  display: grid;
+  grid-template-columns: var(--time-col) repeat(7, minmax(0, 1fr));
+  column-gap: var(--col-gap);
+  position: relative;
+}
+
+/* 时间列：不画线、也不单独上底色。
+   它与天列落在同一块底面上，所以整块底面从左到右没有断口，
+   左侧只留下节次数字与起止时间。 */
+.time-col { background: transparent; }
+
+.slot-time {
+  height: var(--row-h);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1px;
+  overflow: hidden;
+}
+
+.slot-time .no { font-size: 11.5px; font-weight: 600; color: var(--ink-2); }
+
+.slot-time .tm { font-size: 8.5px; color: var(--ink-3); line-height: 1.15; text-align: center; padding: 0 1px; }
+
+/* ------------------------------------------------------------
+   天列
+   ------------------------------------------------------------
+   去掉了所有网格线：
+   · 不再有竖分隔线 -> 列与列直接相邻，共同落在同一块底面上
+   · 不再有横分隔线 -> 靠卡片自身的上下留白分隔
+   底色统一：周一 ~ 周日（含周末、含今天）全部落在 .schedule 的
+   那一块 --surface 上，本列不再画底色，于是列与列之间
+   不再有任何颜色接缝。今天的位置只由表头那个实心圆点标识。
+   ------------------------------------------------------------ */
+.day-col {
+  position: relative;
+  min-width: 0;
+}
+
+/* ============================================================
+   5. 课程卡片：默认仅「课程名 + 教室」
+   ============================================================ */
+.course {
+  position: absolute;
+  /* 左右内边距合计压到 2px —— v1.9.11 从 5px（右 2 + 左 3）里又省出 3px，
+     全部拿去买了那道列缝（见 --col-gap）。
+     课程名要在一行里放下**三个汉字**：11.5px × 3 = 34.5px，
+     而 390dp 屏上卡片内容宽约 41.7px、360dp 屏上约 37.4px —— 都宽裕。
+     改 padding / --col-gap / --card-pad-x 任意一个之前，
+     先跑 smoke-test 里那组「三字一行」的宽度断言。 */
+  padding: 4px 1px;
+  border-radius: var(--radius);
+  /* 实心纯色底 + 白字（不再有左侧色条：整块已经是课程色，再描一道边只是噪声）。
+     **底色由 store.js 按色相算出、内联成 --bg 传进来**，CSS 里刻意不写死明度：
+     明度是「鲜艳优先」定的（12 档统一 60%，只有黄绿压到 59.5%），
+     统一值能让整排卡片深浅一致 —— v1.9.6 之前是各色相各算，黄绿那几张发闷。 */
+  background: var(--bg, hsl(var(--h) 86% 60%));
+  color: #fff;
+  /* 包边 = 两层 box-shadow（v1.9.9 从三层收回两层），**顺序不能换**：写在前面的画在上面。
+     ①包边（颜色跟着主题：白天浅暖灰、夜晚纯白）②投影垫底。
+     投影必须留在最后一层 —— 写到前面会把包边弄脏。
+
+     ⚠ 这条外描边是**向外扩** edge-w 的（box-shadow spread，不参与布局）。
+     所以卡片内缩出来的那点留白，会被相邻两条包边各吃掉 edge-w，
+     净缝 = 留白 − 2×edge-w。v1.9.10 及以前留白恰好也是 2×edge-w，
+     减出来正好是 0 —— 两条边贴成一条。缝现在由 --col-gap / --card-pad-y
+     补足（见文件顶部那两个变量的注释）。 */
+  box-shadow:
+    0 0 0 var(--card-edge-w) var(--card-edge),
+    var(--shadow);
+  /* 课程名与教室**横向都居中**（v1.9.7 用户要求）。多行时每行各自居中。
+     卡片里剩下的元素（老师 / 周次）都是 display:none，不受影响。 */
+  text-align: center;
+  overflow: hidden;
+  /* 纵向的分配在下面两个子类里：课程名上下 auto margin 居中、教室沉底。
+     gap 只作用于可见子项之间（display:none 的不产生 gap）。 */
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  transition: transform .12s ease;
+}
+
+.course:active { transform: scale(.97); }
+
+/* 键盘焦点环（v1.9.45）：卡片现在可以 Tab 到（tabindex="0"），
+   必须给一个**看得见**的焦点提示，否则键盘用户不知道自己在哪一张上。
+   用 :focus-visible 而不是 :focus —— 鼠标点击不显环，只有键盘过来才显。
+   outline-offset 取负值往里收，免得被相邻卡片那条外扩的包边盖掉。 */
+.course:focus-visible {
+  outline: 2px solid var(--ink);
+  outline-offset: -3px;
+  z-index: 3;
+}
+
+/* 夜晚模式：卡片底色**刻意不跟着变**。
+   它现在是不透明的实色，两个主题下都是「白字压鲜艳底」，
+   没有任何需要反色的地方；跟着变反而会让用户自己选的颜色在两个主题间跳。
+   **跟着主题变的只有包边**（v1.9.9）：白天浅暖灰（底面近白，边界靠它补强）、
+   夜晚纯白（底面 #1d1913，白边自己就清楚）。两处各声明一次，
+   见上面的 :root 与 :root[data-theme="dark"]。 */
+
+/* 卡片内部是 flex 纵向布局（见 .course），三个子项的分工：
+     .c-name     课程名 —— 吃掉全部剩余空间并**垂直居中**
+     .c-meta.loc 教室   —— **钉在卡片底边**
+     .c-weeks / .c-meta.teacher  信息仍在 DOM 里但 display:none
+   课程名靠上下两个 auto margin 居中：flex 里 auto margin 会吸走剩余空间，
+   这里上下平分 ⇒ 课程名落在「内容区顶部 ~ 教室顶部」这一段的正中，
+   而教室自然留在最后、贴着底边（v1.9.13 用户要的「课名居中 + 教室沉底」）。
+   ⚠ 不要改用 justify-content: center —— flex 里 auto margin 优先级更高，
+   两者同时写只会互相抵消，容器上的那个是死代码。 */
+
+.c-name {
+  font-size: var(--fs-name);
+  font-weight: 600;
+  line-height: 1.18;
+  /* 中文按字换行；英文/数字等整体不拆（如 -403 不会被拆成 -4 / 03）。
+     字号刻意没有为了「一行三字」往下调 —— 宽度是从卡片内边距里省出来的。 */
+  word-break: normal;
+  overflow-wrap: break-word;
+  overflow: hidden;
+  /* 纵向居中（见上面那段注释） */
+  margin-top: auto;
+  margin-bottom: auto;
+  /* 卡片装不下时的取舍：**课程名先让位，教室保完整**。
+     flex 子项默认 min-height: auto，会被内容顶住、拒绝收缩；置 0 之后它才肯让。
+     配合 overflow: hidden，超高时裁掉的是课程名自己的行，而不是教室。 */
+  min-height: 0;
+}
+
+/* 教室：卡片上第二个（也是最后一个）可见信息。
+   **不给透明度**：底色是鲜艳实色，白字再降一点不透明度就更糊了；
+   这里的层次交给字号（10px）与字重来分。
+   与课程名一起**居中**（继承 .course 的 text-align）。 */
+.c-meta {
+  font-size: var(--fs-meta);
+  line-height: 1.15;
+  word-break: normal;
+  overflow-wrap: break-word;
+  overflow: hidden;
+  /* 教室**不参与收缩**：卡片空间不够时（窄列里地址折成两行、又赶上是单节卡），
+     让课程名先去压缩，教室必须整行完整 —— 这是用户 v1.9.13 明确提的
+     「教室沉底但不希望被遮挡」。 */
+  flex: none;
+}
+
+/* 不可断行单元（教室名里的括号组，如「（4）」） */
+.nb { white-space: nowrap; }
+
+/* 老师 / 周次等默认隐藏，点击卡片后在详情弹层里查看 */
+.c-meta.teacher,
+.c-weeks { display: none; }
+
+/* 单节课程卡片更矮：字号略减，保证课名与教室仍能显示完整 */
+.course[data-span="1"] { --fs-name: 10.5px; --fs-meta: 9.5px; padding-top: 3px; }
+.course[data-span="1"] .c-name { line-height: 1.12; }
+
+/* ---------------- 空状态 ---------------- */
+.empty {
+  padding: 48px 24px;
+  text-align: center;
+  color: var(--ink-3);
+  font-size: 13px;
+  line-height: 1.9;
+}
+
+.empty .big { font-size: 34px; display: block; margin-bottom: 6px; }
+
+/* ---------------- 弹层 ---------------- */
+.mask {
+  position: fixed;
+  inset: 0;
+  background: var(--mask);
+  display: none;
+  align-items: flex-end;
+  justify-content: center;
+  z-index: 50;
+}
+
+.mask.show { display: flex; }
+
+/* 居中显示的小对话框（取色器用）。默认的弹层是「贴底 + 上方圆角」的底部面板，
+   取色器不是一屏内容、而是个小窗，居中更像参考实现里那种选择器；
+   而且它进来时表单已经收起来了，居中也不会看起来像「表单没关干净」。 */
+.mask.mask-center { align-items: center; padding: 20px 16px; }
+
+.mask.mask-center .sheet {
+  max-width: 420px;
+  max-height: 100%;
+  border-radius: 16px;          /* 四角都圆，不是只有上面两角 */
+  padding: 18px 16px 14px;
+  animation: pop .16s ease;
+}
+
+@keyframes pop { from { transform: scale(.96); opacity: .5; } to { transform: none; opacity: 1; } }
+
+/* 确认框：比取色器更小的一个窗，正文常常带换行（删课表那段要把
+   「几门课会一起删」「不可撤销」分成两段），所以保留 \n —— 别让 HTML 把它折掉。 */
+.confirm-sheet { max-width: 360px; }
+
+.confirm-msg {
+  margin: 0;
+  font-size: 13.5px;
+  line-height: 1.6;
+  color: var(--ink-2);
+  white-space: pre-line;
+  overflow-wrap: break-word;
+}
+
+.sheet {
+  width: 100%;
+  max-width: 520px;
+  max-height: 86dvh;
+  overflow-y: auto;
+  background: var(--surface);
+  border-radius: 16px 16px 0 0;
+  padding: 14px 16px calc(18px + var(--safe-bottom));
+  animation: up .2s ease;
+  /* 内容滚到顶后继续下拉时，别把滚动「透传」给底下的课表 */
+  overscroll-behavior: contain;
+}
+
+@keyframes up { from { transform: translateY(24px); opacity: .5; } to { transform: none; opacity: 1; } }
+
+/* 拖拽关闭中的弹层：跟手移动，禁止选中文字 */
+.sheet.dragging { transition: none; user-select: none; cursor: grabbing; }
+
+/* 拖拽把手：只是给「这里可以往下拖」一个可见的提示。
+   手势实际作用于整个弹层（见 app.js 的 bindSheetDrag），不限于这一条。 */
+.sheet-grip {
+  width: 36px;
+  height: 4px;
+  border-radius: 999px;
+  background: var(--line-strong);
+  margin: -2px auto 10px;
+  touch-action: none;
+}
+
+.sheet h3 { margin: 2px 0 12px; font-size: 16px; }
+
+.field { margin-bottom: 12px; }
+
+.field label { display: block; font-size: 12px; color: var(--ink-2); margin-bottom: 5px; }
+
+.field input, .field select, .field textarea {
+  width: 100%;
+  padding: 9px 10px;
+  border: 1px solid var(--line-strong);
+  border-radius: 8px;
+  background: var(--surface-2);
+  color: var(--ink);
+  font-size: 14px;
+  font-family: inherit;
+}
+
+.field textarea { min-height: 130px; font-size: 12px; line-height: 1.5; resize: vertical; }
+
+.field .hint { font-size: 11px; color: var(--ink-3); margin-top: 4px; line-height: 1.5; }
+
+/* ---------------- 课程卡配色选择：调色盘 + 自动 ----------------
+   只有一个调色盘按钮（不用一屏色块）：一是能选的颜色不再受限，
+   二是窄屏上不再折成两行、把表单撑长。中间那块显示**当前实际会用的颜色**
+   （自动时也显示按课名算出来的色），点开之前就知道现在是什么色。
+   外圈那道路虹环是「这里可以选颜色」的唯一提示，不能省。 */
+.color-row { display: flex; align-items: center; gap: 10px; }
+
+.color-pick {
+  position: relative;
+  width: 34px;
+  height: 34px;
+  padding: 0;
+  border: none;
+  background: none;
+  flex: none;
+  cursor: pointer;
+}
+
+/* 彩虹环：conic-gradient 从 12 点方向顺时针一圈。
+   第一行是兜底 —— 老 WebView（Chrome < 69）不认 conic-gradient，
+   整条声明会被丢掉，只留一个空洞的圆圈；线性渐变到处都认。 */
+.color-pick::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #FF3B30, #FFCC00, #34C759, #32ADE6, #AF52DE);
+  background: conic-gradient(from 90deg,
+    #FF3B30, #FF9500, #FFCC00, #34C759, #32ADE6, #5856D6, #AF52DE, #FF2D55, #FF3B30);
+}
+
+/* 中间那块：由 app.js 把 --bg 设成当前颜色 */
+.color-pick i {
+  position: absolute;
+  inset: 4px;
+  border-radius: 50%;
+  background: var(--bg, #2f6fd0);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .5);
+}
+
+/* 选中（= 用的是自定义色）：外面再套一圈，和「自动」的选中态呼应 */
+.color-pick.is-on::after {
+  content: '';
+  position: absolute;
+  inset: -3px;
+  border-radius: 50%;
+  border: 2px solid var(--ink);
+}
+
+.color-pick:active { transform: scale(.94); }
+
+.color-auto {
+  height: 30px;
+  padding: 0 14px;
+  /* 边框平时透明、选中时上色：留出固定占位，选中的按钮不会把旁边挤动 */
+  border: 2px solid transparent;
+  border-radius: 15px;
+  background: var(--surface-2);
+  box-shadow: inset 0 0 0 1px var(--line-strong);
+  color: var(--ink-2);
+  font-family: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.color-auto.is-on { border-color: var(--ink); color: var(--ink); font-weight: 600; }
+
+/* 颜色这一行横着放：标签在左、控件在右（和设置里那些「值在右边」的行一致）。
+   .field 本身是块级、不是 flex，所以要显式开 flex。 */
+.field.field-inline { display: flex; align-items: center; justify-content: space-between; }
+.field.field-inline > label { margin: 0; }
+
+/* ---------------- 取色器 ----------------
+   方块是标准 HSV：底色纯色相 + 横向白→透明（饱和度）+ 纵向透明→黑（明度）。
+   两个可拖的指示点都 pointer-events:none —— 拖的是它下面那块区域，
+   指示点自己接事件的话，手指压住圆点反而拖不动。 */
+.cp-main { display: flex; gap: 12px; margin-bottom: 14px; }
+
+.cp-area {
+  position: relative;
+  flex: 1;
+  height: 200px;
+  border-radius: 10px;
+  touch-action: none;         /* 别让浏览器把拖动当成页面滚动抢走 */
+  cursor: crosshair;
+}
+
+.cp-dot {
+  position: absolute;
+  width: 18px;
+  height: 18px;
+  margin: -9px 0 0 -9px;      /* 让圆心落在手指那一点，而不是左上角 */
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, .5), inset 0 0 0 1px rgba(0, 0, 0, .15);
+  pointer-events: none;
+}
+
+.cp-hue {
+  position: relative;
+  width: 26px;
+  height: 200px;
+  border-radius: 13px;
+  background: linear-gradient(to bottom,
+    #FF0000, #FFFF00, #00FF00, #00FFFF, #0000FF, #FF00FF, #FF0000);
+  touch-action: none;
+  cursor: pointer;
+}
+
+.cp-hue-dot {
+  position: absolute;
+  left: 50%;
+  width: 34px;
+  height: 8px;
+  margin: -4px 0 0 -17px;     /* 横向居中、纵向让中心落在手指那一点 */
+  border-radius: 4px;
+  background: #fff;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, .5);
+  pointer-events: none;
+}
+
+.cp-info { display: flex; align-items: center; gap: 12px; }
+
+/* 预览块：**直接把白字压在用户挑的颜色上**。自定义色刻意不自动调明度
+   （那是用户明确的选择，改了他会发现「我选的色变了」），所以可读性只能
+   靠这里让他自己看见，配下面那行文字提示。 */
+.cp-preview {
+  width: 86px;
+  height: 42px;
+  flex: none;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  font-size: 12px;
+  font-weight: 600;
+  box-shadow: inset 0 0 0 1px var(--line-strong);
+}
+
+.cp-hex {
+  flex: 1;
+  min-width: 0;
+  border: none;
+  border-bottom: 1.5px solid var(--line-strong);
+  border-radius: 0;
+  background: none;
+  padding: 6px 2px;
+  color: var(--ink);
+  font-family: inherit;
+  font-size: 15px;
+  letter-spacing: .5px;
+  text-transform: uppercase;
+}
+
+.cp-hex:focus { border-bottom-color: var(--accent); }
+
+/* 提示行占着位置（min-height），有字没字都不会把下面的按钮顶动 */
+.cp-tip {
+  margin: 8px 0 0;
+  min-height: 17px;
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--danger);
+}
+
+.row { display: flex; gap: 8px; }
+
+.row > * { flex: 1; }
+
+.sheet-actions { display: flex; gap: 8px; margin-top: 14px; }
+
+.sheet-actions .btn { flex: 1; padding: 10px; font-size: 14px; }
+
+/* 设置里那种「点一下跳到另一页」的行：长得像同页的输入框，但整行可点 */
+.nav-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 9px 10px;
+  border: 1px solid var(--line-strong);
+  border-radius: 8px;
+  background: var(--surface-2);
+  text-align: left;
+}
+
+.nav-row:active { border-color: var(--accent); }
+
+.nr-main { flex: 1; min-width: 0; }
+
+.nr-title { display: block; font-size: 14px; }
+
+.nr-sub { display: block; font-size: 11px; color: var(--ink-3); margin-top: 3px; }
+
+/* 课程详情 */
+.detail-list { font-size: 13.5px; line-height: 1.95; }
+
+.detail-list .r { display: flex; gap: 10px; }
+
+.detail-list .k { color: var(--ink-3); flex: none; width: 62px; }
+
+.detail-list .v { flex: 1; word-break: break-word; }
+
+.detail-list .tags { display: flex; gap: 6px; flex-wrap: wrap; margin: 2px 0 10px; }
+
+.detail-list .tag {
+  font-size: 11px;
+  padding: 2px 9px;
+  border-radius: 999px;
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.detail-list .tag.plain { background: var(--surface-2); color: var(--ink-2); font-weight: 500; }
+
+/* 复制选项：整行可点，主文案 + 一行说明 */
+.opt-list { display: flex; flex-direction: column; gap: 8px; }
+
+.opt-row {
+  display: block;
+  width: 100%;
+  text-align: left;
+  padding: 11px 12px;
+  border: 1px solid var(--line-strong);
+  border-radius: 10px;
+  background: var(--surface-2);
+  transition: background .12s ease, border-color .12s ease;
+}
+
+.opt-row:active { background: var(--accent-soft); border-color: var(--accent); }
+
+.opt-row .opt-t { display: block; font-size: 14px; font-weight: 600; }
+
+.opt-row .opt-d { display: block; font-size: 11px; color: var(--ink-3); margin-top: 3px; line-height: 1.5; }
+
+/* 「发送到聊天」里没装的应用：就地置灰，说明行同时交代原因。
+   点了才被告知「未安装」体验差一截——一开始就说明白。（:disabled 会让
+   :active 不再触发，所以这里不需要额外写「别响应点击」的规则。） */
+.opt-row:disabled,
+.opt-row.is-off { opacity: .5; }
+
+/* ============================================================
+   整页表单层：编辑时间表
+   ------------------------------------------------------------
+   设置里的「上课时间表」点进来的是**一整页**，不是底部弹层：
+   内容长（十几节 × 两个时间）、有自己的一份草稿和「保存」，
+   用弹层会又矮又要跟拖拽手势打架，而且「跳转」的预期就是换一页。
+   整页不透明（背景 = 页面底色）且铺满安全区，所以看不出底下是弹层。
+   ============================================================ */
+.mask-page {
+  background: var(--bg);
+  align-items: stretch;
+}
+
+.page {
+  width: 100%;
+  max-width: 520px;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;                 /* 让 .page-body 真的能滚，而不是把父级撑高 */
+  background: var(--bg);
+}
+
+.page-head {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: calc(8px + var(--safe-top)) 10px 8px;
+  background: var(--surface);
+  border-bottom: 1px solid var(--line);
+  flex: none;
+}
+
+.ph-title { flex: 1; margin: 0; font-size: 16.5px; font-weight: 700; text-align: center; }
+
+.ph-save {
+  flex: none;
+  min-width: 54px;
+  padding: 8px;
+  border: 0;
+  background: transparent;
+  color: var(--accent);
+  font-size: 15px;
+  font-weight: 600;
+  text-align: right;
+}
+
+.ph-save:active { opacity: .55; }
+
+.page-body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 12px 12px calc(20px + var(--safe-bottom));
+}
+
+/* 分组卡片：白底浮在页面底色上，行与行之间用发丝线分隔 */
+.card {
+  background: var(--surface);
+  border-radius: 12px;
+  overflow: hidden;
+  margin-bottom: 12px;
+}
+
+.card-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 13px 14px;
+}
+
+.card-row + .card-row { border-top: 1px solid var(--line); }
+
+.cr-main { flex: 1; min-width: 0; }
+
+.cr-label { font-size: 14.5px; }
+
+.cr-sub { display: block; font-size: 11px; color: var(--ink-3); margin-top: 4px; line-height: 1.5; }
+
+.cr-value { display: flex; align-items: center; gap: 3px; flex: none; font-size: 14px; color: var(--ink-2); }
+
+/* 右侧「值 + 箭头」。v1.9.15 之前这里借用原生 <select>（安卓上弹系统列表），
+   现在换成一个 <button>：`.value` / `.disabled` 的语义与原来的 select 一致，
+   所以 app.js 与两套测试的读写都不用改，只有长相要自己重置。
+   为什么不留着原生 picker：它弹出来的列表是系统画的，皮肤跟着 Activity 主题走，
+   页面是白天暖色时它会是一块冷灰（用户报的四处之一）。 */
+.cr-value-btn {
+  padding: 6px 0;
+  border: 0;
+  background: transparent;
+  font-family: inherit;
+  font-size: 14px;
+  line-height: 1.4;
+}
+
+.cr-value-btn:active { color: var(--accent); }
+
+.cr-value-btn:disabled { cursor: default; }
+
+/* 右向箭头：画出来的，不引入图标 */
+.chev {
+  width: 6px;
+  height: 6px;
+  flex: none;
+  border-top: 1.6px solid var(--ink-3);
+  border-right: 1.6px solid var(--ink-3);
+  transform: rotate(45deg);
+}
+
+/* 开关：原生 checkbox 藏在下面，视觉全由 .sw-track 画。
+   放在 <label> 里，所以点整行都能拨动它。 */
+.switch { position: relative; display: inline-flex; flex: none; }
+
+.switch input { position: absolute; inset: 0; margin: 0; opacity: 0; }
+
+.sw-track {
+  display: block;
+  position: relative;
+  width: 48px;
+  height: 28px;
+  border-radius: 999px;
+  background: var(--line-strong);
+  transition: background .16s ease;
+}
+
+.sw-knob {
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, .3);
+  transition: transform .16s ease;
+}
+
+.switch input:checked + .sw-track { background: var(--accent); }
+
+.switch input:checked + .sw-track .sw-knob { transform: translateX(20px); }
+
+/* 被关掉的那一项要看得出来「现在不归你管」（时长行在开关关闭时禁用） */
+.card-row.off .cr-label,
+.card-row.off .cr-value { color: var(--ink-3); }
+
+.card-row.off #ttDur { color: var(--ink-3); }
+
+/* 「24 小时制提示 + 添加」一行 */
+.list-head { display: flex; align-items: center; gap: 8px; padding: 0 4px 8px; }
+
+.lh-hint { flex: 1; font-size: 12px; color: var(--ink-3); }
+
+.add-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  flex: none;
+  padding: 7px 12px;
+  border: 1px solid var(--line-strong);
+  border-radius: 999px;
+  background: var(--surface);
+  font-size: 13px;
+  color: var(--ink);
+}
+
+.add-btn:active { border-color: var(--accent); color: var(--accent); }
+
+.add-btn[disabled] { opacity: .45; }
+
+.add-btn .plus { font-style: normal; font-size: 15px; line-height: 1; }
+
+/* 每节课一行：左「第 N 节课」，右两个时间。行内左滑露出「删除」。
+   .tt-row-wrap 只负责**裁剪** —— 行往左滑出去的那一块由它挡住，露出来的是底下的 .tt-del。
+   所以 .tt-row 必须是不透明的：透明的话红色按钮会从行底下透出来。 */
+.tt-row-wrap { position: relative; overflow: hidden; }
+
+.tt-row-wrap + .tt-row-wrap { border-top: 1px solid var(--line); }
+
+.tt-del {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 0;
+  width: 76px;              /* ← 改这里要同步 app.js 的 SWIPE_W */
+  border: 0;
+  border-radius: 0;
+  background: var(--del-bg);
+  color: #fff;
+  font-family: inherit;
+  font-size: 14px;
+}
+
+.tt-del[disabled] { opacity: .45; }
+
+.tt-row {
+  position: relative;
+  z-index: 1;               /* 盖住底下的删除按钮 */
+  padding: 10px 14px;
+  background: var(--surface);
+  transition: transform .18s ease;
+}
+
+.tt-times { display: flex; align-items: center; gap: 6px; flex: none; }
+
+/* 每一节的时间格。v1.9.15 起它是 <button>（点开自绘滚轮），不是
+   <input type="time"> —— 原生那种一点就弹系统表盘，主题够不着。
+   尺寸与配色沿用原来的，只是不再需要 ::-webkit-datetime-edit。 */
+.tp {
+  width: 86px;
+  padding: 8px 4px;
+  border: 0;
+  border-radius: 8px;
+  background: var(--surface-2);
+  color: var(--ink);
+  font-size: 14.5px;
+  font-family: inherit;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+
+.tp:active { background: var(--accent-soft); color: var(--accent); }
+
+/* 固定时长打开时结束时间由程序算，不给改 —— 灰掉表达「这是推算出来的」 */
+.tp:disabled { color: var(--ink-2); opacity: .7; }
+
+.tp:disabled:active { background: var(--surface-2); color: var(--ink-2); }
+
+.tp-dash { flex: none; color: var(--ink-3); }
+
+.page-foot { padding: 4px 0 0; }
+
+/* ============================================================
+   自绘选择器：单选列表 / 月历 / 滚轮（v1.9.15）
+   ------------------------------------------------------------
+   这三层替代的是 <select>、<input type="date">、<input type="time">
+   点下去弹出来的**系统层**。那种层的皮肤由 Activity 的主题决定
+   （本工程在 values-night 里把 Activity 换成了深色 Material），
+   而应用自己的白天/夜晚是页面按 localStorage 定的 —— 两者可以不一致，
+   于是「页面是白天暖色、弹层是一块冷灰」，CSS 一点也改不动它。
+   自绘之后它们和全站共用同一套令牌，两套主题自动跟着走。
+
+   三层都用 .sheet（底部弹层），所以圆角 / 安全区留白 / 弹出动画 /
+   点弹层外关闭 / closeAllMasks 的遍历兜底全部天然继承；
+   下面只写各自的内部构件。
+   ============================================================ */
+
+/* ---------------- 1. 单选列表 ----------------
+   每节课时长 / 星期 / 导入到哪个课表 三处共用同一个弹层。 */
+.pick-list {
+  /* position: relative 是为了让行的 offsetTop 以它为基准（picker.js 要把
+     当前值滚到中间；没有它 offsetParent 会跑到 .mask 上去，算出来是歪的） */
+  position: relative;
+  max-height: 46dvh;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--surface);
+}
+
+.pick-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 12px;
+  border: 0;
+  border-bottom: 1px solid var(--line);
+  border-radius: 0;
+  background: transparent;
+  text-align: left;
+}
+
+.pick-row:last-child { border-bottom: none; }
+
+.pick-row:active { background: var(--surface-2); }
+
+/* 选中行：软绿底 + 主色文字 + 右侧对勾。**不只用颜色区分** ——
+   对勾同时出现，色彩辨识有困难的用户也看得出来。 */
+.pick-row.is-on { background: var(--accent-soft); }
+
+.pick-row.is-on .pk-t { color: var(--accent); font-weight: 600; }
+
+.pk-main { flex: 1; min-width: 0; }
+
+.pk-t { display: block; font-size: 14.5px; color: var(--ink); }
+
+/* 标题前面那个小标记（目前只有「新建课表并导入」的 ＋ 用到） */
+.pk-plus { font-style: normal; font-weight: 700; color: var(--accent); margin-right: 3px; }
+
+.pk-sub { display: block; font-size: 11px; color: var(--ink-3); margin-top: 3px; }
+
+/* 对勾：两支边框转 -45°，不引图标资源。未选中时只是透明，照样占位，行不会抖 */
+.pk-tick {
+  flex: none;
+  width: 13px;
+  height: 8px;
+  margin-bottom: 4px;
+  border-left: 2px solid var(--accent);
+  border-bottom: 2px solid var(--accent);
+  transform: rotate(-45deg);
+  opacity: 0;
+}
+
+.pick-row.is-on .pk-tick { opacity: 1; }
+
+/* ---------------- 2. 月历 ---------------- */
+.cal-bar { display: flex; align-items: center; gap: 6px; margin-bottom: 6px; }
+
+.cal-nav {
+  width: 32px;
+  height: 32px;
+  flex: none;
+  padding: 0;
+  border: 1px solid var(--line-strong);
+  border-radius: 9px;
+  background: var(--surface);
+  color: var(--ink-2);
+  font-family: inherit;
+  font-size: 17px;
+  line-height: 1;
+}
+
+.cal-nav:active { background: var(--accent-soft); color: var(--accent); border-color: transparent; }
+
+.cal-title { flex: 1; text-align: center; font-size: 14.5px; font-weight: 600; }
+
+/* 挑中的那一天 + 星期，大字压在日历上方：和系统那一版一样，
+   手指落在哪一格、眼睛不用在格子堆里找。 */
+.cal-picked {
+  display: flex;
+  align-items: baseline;
+  justify-content: center;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.cal-picked b { font-size: 22px; font-weight: 700; font-variant-numeric: tabular-nums; }
+
+.cal-picked span { font-size: 13px; font-weight: 600; color: var(--accent); }
+
+.cal-dow { display: grid; grid-template-columns: repeat(7, 1fr); margin-bottom: 2px; }
+
+.cal-dow span { text-align: center; font-size: 11px; color: var(--ink-3); }
+
+.cal-dow .wk { color: var(--ink-2); }
+
+.cal-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px; }
+
+.cal-d {
+  height: 40px;
+  padding: 0;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--ink);
+  font-family: inherit;
+  font-size: 14px;
+  font-variant-numeric: tabular-nums;
+}
+
+.cal-d:active { background: var(--surface-2); }
+
+/* 上/下月的补位格：还看得见（点它会顺势翻到那个月），但明显退到后面 */
+.cal-d.is-out { color: var(--ink-3); }
+
+/* 今天只占一圈主色描边 —— 选中是实心主色块，两个不能长得一样，
+   否则「今天」和「我选的那天」会混。 */
+.cal-d.is-today { color: var(--accent); font-weight: 700; box-shadow: inset 0 0 0 1.5px var(--accent); }
+
+/* 今天又恰好被选中时，描边让位给实心底 */
+.cal-d.is-on {
+  background: var(--accent);
+  color: var(--on-accent);
+  font-weight: 700;
+  box-shadow: none;
+}
+
+.cal-note {
+  margin: 8px 0 0;
+  min-height: 17px;          /* 占位：有字没字都不会把下面的按钮顶动 */
+  font-size: 11.5px;
+  line-height: 1.45;
+  text-align: center;
+  color: var(--ink-2);
+}
+
+/* ---------------- 3. 滚轮 ----------------
+   两列滚轮 + 正中一条高亮带。
+   层级：高亮带(auto) < 滚轮(z-index:1) < 上下渐隐(z-index:2)。
+   带子靠「滚轮自己没有底色」透出来，渐隐盖在最上面把进出格的项柔化掉。 */
+.whl-wrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  padding: 0 6px;
+  margin: 2px 0 6px;
+}
+
+.whl-band {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 50%;
+  height: 40px;              /* 必须等于 picker.js 的 WHEEL_H */
+  margin-top: -20px;
+  border-radius: 10px;
+  background: var(--accent-soft);
+}
+
+/* 高亮带上下两条细线：白天主题里单靠一块浅绿底不够明确 */
+.whl-band::before,
+.whl-band::after {
+  content: '';
+  position: absolute;
+  left: 14px;
+  right: 14px;
+  height: 1px;
+  background: var(--accent);
+  opacity: .35;
+}
+
+.whl-band::before { top: 0; }
+.whl-band::after { bottom: 0; }
+
+.whl {
+  position: relative;
+  z-index: 1;
+  width: 62px;
+  height: 200px;             /* = 5 × 40，与 picker.js 的 WHEEL_VIS 对应 */
+  overflow-y: auto;
+  scroll-snap-type: y mandatory;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+  background: transparent;
+}
+
+.whl::-webkit-scrollbar { display: none; }
+
+/* 首尾垫片：(5-1)/2 × 40 = 80px，让第 i 项正好落在正中 */
+.whl-pad { display: block; height: 80px; }
+
+.whl-i {
+  height: 40px;              /* 改这里必须同步 picker.js 的 WHEEL_H（有哨兵） */
+  line-height: 40px;
+  text-align: center;
+  scroll-snap-align: center;
+  font-size: 16px;
+  color: var(--ink-2);
+  font-variant-numeric: tabular-nums;
+}
+
+/* 正中那一项。只改字号不改盒高（高度是写死的 40px），滚轮不会因此跳 */
+.whl-i.is-on { color: var(--accent); font-size: 21px; font-weight: 700; }
+
+.whl-colon { font-style: normal; font-size: 18px; color: var(--ink-3); }
+
+.whl-wrap::before,
+.whl-wrap::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 62px;
+  z-index: 2;
+  pointer-events: none;
+}
+
+.whl-wrap::before { top: 0; background: linear-gradient(to bottom, var(--surface), rgba(0, 0, 0, 0)); }
+.whl-wrap::after { bottom: 0; background: linear-gradient(to top, var(--surface), rgba(0, 0, 0, 0)); }
+
+/* 大号读数 + 结束时间提示（开着固定时长时，选了开始时间就能看见结束时间） */
+.tt-big {
+  display: flex;
+  align-items: baseline;
+  justify-content: center;
+  gap: 8px;
+  margin-bottom: 2px;
+}
+
+.tt-big b { font-size: 26px; font-weight: 700; font-variant-numeric: tabular-nums; }
+
+.tt-big .tt-end { font-size: 12.5px; font-weight: 600; color: var(--accent); }
+
+/* 导入结果提示 */
+.result-box {
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 10px;
+  font-size: 12px;
+  line-height: 1.7;
+  max-height: 150px;
+  overflow: auto;
+  white-space: pre-wrap;
+  color: var(--ink-2);
+}
+
+/* 选择学校里的校验失败提示（如地址填错） */
+.result-box.is-err {
+  border-color: var(--danger);
+  color: var(--danger);
+}
+
+.toast {
+  position: fixed;
+  left: 50%;
+  bottom: calc(30px + var(--safe-bottom));
+  transform: translateX(-50%);
+  background: var(--toast-bg);
+  color: var(--toast-ink);
+  padding: 9px 16px;
+  border-radius: 999px;
+  font-size: 13px;
+  z-index: 99;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity .2s ease;
+  max-width: 84vw;
+  text-align: center;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, .18);
+}
+
+.toast.show { opacity: 1; }
+
+/* ============================================================
+   屏幕自适应
+   ------------------------------------------------------------
+   注意：--row-h 由 JS 依据可视高度动态计算（一屏 8 节），
+   这里只调整字号与时间列宽度等与高度无关的参数。
+   ============================================================ */
+
+/* 窄屏（<360dp）：进一步压缩，保证七列都能看清 */
+@media (max-width: 359px) {
+  /* 320dp 上卡片内容宽约 32.6px，放三个 10.5px 的汉字需要 31.5px —— 够。
+     v1.9.11 之前这里还要再各收 1px 内边距（当时基础值左右合计 5px、
+     窄屏收到 3px，余量只剩 0.07px）；现在基础值就是 2px，比窄屏档还窄，
+     这一档反而成了往回放宽，所以直接删掉，让基础值生效。 */
+  :root { --time-col: 32px; --fs-name: 10.5px; --fs-meta: 9px; --fs-head: 10.5px; }
+  .tb-week { font-size: 15px; }
+  .tb-line2 { font-size: 10.5px; }
+  .icon-btn { width: 30px; height: 30px; }
+  .icon-btn svg { width: 16px; height: 16px; }
+  .slot-time .tm { display: none; }
+  .topbar { padding: 7px 8px 6px; gap: 6px; }
+  .tb-actions { gap: 4px; }
+  .weekbar { padding: 0 8px 7px; }
+}
+
+/* 常见手机（360-430dp）——顶栏放 4 个图标按钮 + 课表切换器，这里压紧一点，
+   保证「课表名 + 第 N 周 + 单双周」都能完整显示 */
+@media (min-width: 360px) and (max-width: 430px) {
+  :root { --time-col: 38px; }
+  .topbar { padding: 8px 10px 7px; gap: 6px; }
+  .tb-actions { gap: 5px; }
+  .icon-btn { width: 32px; height: 32px; }
+  .icon-btn svg { width: 17px; height: 17px; }
+}
+
+/* 大屏手机 / 折叠屏外屏 */
+@media (min-width: 421px) and (max-width: 559px) {
+  :root { --time-col: 44px; --fs-name: 12.5px; --fs-meta: 10.5px; --fs-head: 12.5px; }
+}
+
+/* 平板 / 横屏：整体放大 */
+@media (min-width: 560px) {
+  :root { --time-col: 62px; --fs-name: 14px; --fs-meta: 12px; --fs-head: 13.5px; }
+  .slot-time .tm { font-size: 10px; }
+  .course { padding: 6px 7px 6px 8px; }
+  .tb-week { font-size: 19px; }
+  .tb-line2 { font-size: 13px; }
+  .topbar { padding: 10px 16px 8px; }
+  .weekbar { padding: 0 16px 10px; }
+
+  /* 整页表单在平板 / 横屏上怎么排：页头**通栏**、内容**限宽居中**。
+     手机（≤430）完全不走这里，一行都不变。
+
+     为什么不能只把 .page 拉宽了事：.page 是个 520px 的窄条居中，
+     它的页头（白底 + 下边线）就跟着成一截 520px 的白条浮在米色页面上，
+     左右露着两块底色 —— 看起来像没适配。改成页头通栏后，
+     返回 / 标题 / 保存各就各位，正是一台平板上 app bar 的样子。
+     内容再单独限宽 680px：一屏 1072px 时一行「第 1 节课 —— 08:00」
+     会拉成一条 1000px 的长条，字号没变、眼睛要从左扫到右，反而更难读。
+
+     max() 是给横屏平板的挖孔用的：16px 是常规边距，挖孔更宽时以它为准。 */
+  .mask-page .page { max-width: none; }
+  .mask-page .page-head {
+    padding-left: max(16px, var(--safe-left));
+    padding-right: max(16px, var(--safe-right));
+  }
+  .mask-page .page-body { padding-left: 16px; padding-right: 16px; }
+  .mask-page .page-body > * { max-width: 680px; margin-left: auto; margin-right: auto; }
+
+  /* 行内的「值」贴到右边。手机上一行只有三百多像素，标签和时间挨着最省地方；
+     平板上一行 680px，还挨着写就会在右边留出四百像素的空白，看着像没排完版。
+     让标签吃掉剩余空间即可（.cr-main 本来就是 flex:1，这里补上裸 .cr-label 的两行）。 */
+  .mask-page .card-row .cr-label { flex: 1; }
+}
+
+@media (min-width: 820px) {
+  .sheet { border-radius: 16px; margin-bottom: 6vh; }
+
+  /* 大屏居中是给**底部弹层**的（变成浮起的小卡片）。
+     但整页表单（#maskTimetable）身上也挂着 .mask —— 于是它被一起居中了，
+     而 .page 的高度是**内容撑出来的**（1112px > 视口 776px），一居中就把
+     页顶推到屏幕上方：页头跑出屏幕、右上角「固定上课时长」的开关落到
+     y = -48 点不着，卡片标题被屏幕顶边切掉半行（v1.9.16 修的平板问题）。
+     用 :not() 把它排除在外，而不是在下面再补一条覆盖 —— 同一个决定只留一处，
+     将来再加整页表单也不会重蹈。 */
+  .mask:not(.mask-page) { align-items: center; }
+}
+
+/* 横屏矮屏：横向空间充裕，适当加宽时间列 */
+@media (orientation: landscape) and (max-height: 520px) {
+  :root { --time-col: 52px; }
+  .topbar { padding: 6px 16px 5px; }
+  .weekbar { padding: 0 16px 6px; }
+}
+
+/* ============================================================
+   多课表：顶栏切换器
+   ------------------------------------------------------------
+   放在顶栏第一行最左侧，点击打开「课表管理」。
+   长度受限并省略，避免长课表名挤掉右侧的周次信息。
+   ============================================================ */
+/* 课表名超长 / 屏幕极窄时优先保底显示，不要被挤成一个字 */
+.sched-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  flex: 0 1 auto;
+  min-width: 58px;
+  max-width: 112px;
+  padding: 2px 4px 2px 7px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--surface-2);
+  color: var(--ink-2);
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1.5;
+}
+
+.sched-chip:active { background: var(--accent-soft); color: var(--accent); border-color: transparent; }
+
+.sched-chip .sc-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+}
+
+.sched-chip .sc-caret {
+  width: 11px;
+  height: 11px;
+  flex: none;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2.4;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  opacity: .75;
+}
+
+/* 顶栏第二行的「共 N 周」/「距开学 N 天」：空间足够时完整显示，不够时自己省略 */
+.tb-line2 .term {
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: var(--ink-3);
+}
+
+/* ============================================================
+   多课表：课表管理列表
+   ============================================================ */
+.sched-list {
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  overflow: hidden;
+  background: var(--surface);
+}
+
+.sched-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 10px;
+  border-bottom: 1px solid var(--line);
+}
+
+.sched-row:last-child { border-bottom: none; }
+
+.sched-row.is-active {
+  background: var(--accent-soft);
+  box-shadow: inset 3px 0 0 var(--accent);
+}
+
+.sr-main {
+  flex: 1;
+  min-width: 0;
+  cursor: pointer;
+}
+
+.sr-name {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--ink);
+  min-width: 0;
+}
+
+.sr-name .txt {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+}
+
+.sr-sub {
+  margin-top: 2px;
+  font-size: 11px;
+  color: var(--ink-3);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.badge-cur {
+  flex: none;
+  font-size: 10px;
+  font-weight: 600;
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: var(--accent);
+  color: var(--on-accent);
+}
+
+.sr-ops { display: flex; gap: 5px; flex: none; }
+
+.sr-ops button {
+  border: 1px solid var(--line-strong);
+  background: var(--surface);
+  color: var(--ink-2);
+  border-radius: 7px;
+  padding: 4px 8px;
+  font-size: 11.5px;
+}
+
+.sr-ops button:active { background: var(--surface-2); }
+
+.sr-ops button.is-danger { color: var(--danger); border-color: var(--danger); }
+
+.sr-input {
+  width: 100%;
+  padding: 6px 8px;
+  border: 1px solid var(--accent);
+  border-radius: 7px;
+  background: var(--surface);
+  color: var(--ink);
+  font-size: 14px;
+  font-family: inherit;
+}
+
+.sched-hint {
+  margin-top: 8px;
+  font-size: 11px;
+  color: var(--ink-3);
+  line-height: 1.6;
+}
+
+/* ============================================================
+   打开教务系统 / 我的学校
+   ============================================================ */
+.school-list {
+  max-height: 46dvh;
+  overflow-y: auto;
+  margin-bottom: 12px;
+}
+
+/* 载入了适配库且没在搜索时，列表里是「字母总览」的内层滚动区；
+   外层放宽，避免内外两层滚动条各滚各的（ sheet 自身还有 86dvh 兜底） */
+.school-list.has-lib { max-height: 62dvh; }
+
+/* ---- 字母总览（v1.9.34）：A–Z 分组 + 右侧字母条 + 用过置顶 ---- */
+.lib-wrap { position: relative; }
+
+/* 内层滚动区：限高自己滚，字母条才能一直露着。
+   position:relative 让字母标题的 offsetTop 直接可算（jumpToLetter 用） */
+.lib-scroll {
+  position: relative;
+  max-height: 48dvh;
+  overflow-y: auto;
+  padding-right: 24px;              /* 给右侧字母条让位，行别钻到它底下 */
+  -webkit-overflow-scrolling: touch;
+}
+
+/* 字母标题吸顶：滚到哪组，那组的字母一直看得见（对齐同业的样子）。
+   背景必须实打实盖住行 —— 用 --surface，两个主题各取各的 */
+.lib-scroll .sch-group {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: var(--surface);
+  padding: 4px 0;
+  margin: 4px 0 2px;
+}
+
+.lib-scroll .lib-star { color: var(--accent); }
+
+/* 右侧字母条：绝对定位在 .lib-wrap（滚动区**外**）上 ——
+   放进滚动区里它会跟着内容滚走。竖排居中、逐字母可点 */
+.lib-index {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: 20px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  font-size: 10px;
+  line-height: 1;
+  color: var(--ink-3);
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.lib-index span {
+  padding: 2px 3px;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+.lib-index span:active {
+  color: var(--accent);
+  font-weight: 700;
+}
+
+.sch-group {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--ink-3);
+  margin: 12px 2px 6px;
+}
+
+.sch-group:first-child { margin-top: 2px; }
+
+/* 「正方新版 / 统一认证」这类提示，只说明页面大概长什么样，不参与解析 */
+.sch-sys {
+  flex: none;
+  font-size: 10px;
+  font-weight: 600;
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.school-list .sched-row { cursor: pointer; }
+
+.school-list .sched-row:active { background: var(--surface-2); }
+
+.school-empty {
+  padding: 16px 4px;
+  text-align: center;
+  font-size: 12px;
+  color: var(--ink-3);
+  line-height: 1.6;
+}
+
+.school-panel[hidden] { display: none; }
+
+.school-panel input { margin-bottom: 0; }
+
+/* ============================================================
+   主题切换：顶栏按钮 + 设置里的分段控件
+   ============================================================ */
+/* 夜晚模式下显示太阳（点击切回白天），白天模式显示月亮 */
+#btnTheme .ic-sun { display: none; }
+:root[data-theme="dark"] #btnTheme .ic-sun { display: block; }
+:root[data-theme="dark"] #btnTheme .ic-moon { display: none; }
+
+.seg {
+  display: flex;
+  gap: 4px;
+  padding: 3px;
+  border-radius: 10px;
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+}
+
+.seg button {
+  flex: 1;
+  border: none;
+  background: transparent;
+  color: var(--ink-2);
+  border-radius: 8px;
+  padding: 8px 4px;
+  font-size: 13px;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.seg button.is-on {
+  background: var(--surface);
+  color: var(--accent);
+  font-weight: 600;
+  box-shadow: var(--shadow);
+}
+
+/* 导入预览里的操作按钮（选择导入到哪个课表） */
+.import-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.import-actions .btn { font-size: 12.5px; padding: 8px 10px; flex: 1 1 auto; }
+
+/* ============================================================
+   主题过渡
+   ------------------------------------------------------------
+   只在切换主题时给背景/文字加过渡，避免标签页切换瞬间生硬。
+   放在最后，确保覆盖各组件的 transition 声明。
+   ============================================================ */
+body, #app, .topbar, .weekbar, .grid-wrap, .head-row, .corner, .day-head,
+.time-col, .day-col, .sheet, .icon-btn, .nav-btn, .btn, .chip, .sched-chip,
+.field input, .field select, .field textarea, .sched-list, .seg, .seg button {
+  transition: background-color .2s ease, color .2s ease, border-color .2s ease;
+}
+
+/* 卡片原有的按压缩放过渡要一并保留
+   （v1.9.45 去掉 border-left-color：卡片早已改成「整块实心色 + 外描边」，
+   不再有左侧色条，那个过渡属性已无对象） */
+.course {
+  transition: transform .12s ease, background-color .2s ease,
+              color .2s ease;
+}
+
+/* 尊重系统「减少动态效果」设置 */
+@media (prefers-reduced-motion: reduce) {
+  body, #app, .topbar, .weekbar, .grid-wrap, .head-row, .corner, .day-head,
+  .time-col, .day-col, .sheet, .icon-btn, .nav-btn, .btn, .chip, .sched-chip,
+  .field input, .field select, .field textarea, .sched-list, .seg, .seg button,
+  .course {
+    transition: none;
+  }
+  .schedule.slide-from-right, .schedule.slide-from-left { animation: none; }
+  .sheet { animation: none; }
+}

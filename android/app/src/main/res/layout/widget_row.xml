@@ -1,0 +1,71 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 小组件列表里的一节课：左侧一根课程色条 + 课名 / 地点。
+     色条用课程自己的颜色（和课表里的卡片同色），用户扫一眼就能把
+     桌面上这一行和 App 里那张卡对上。颜色在 WidgetRender.bindRow 里设。 -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/w_row"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="horizontal"
+    android:gravity="center_vertical"
+    android:paddingTop="3dp"
+    android:paddingBottom="3dp">
+
+    <!-- 课程色条。**必须是 TextView，不能是 <View>** ——
+         与 widget_twoday.xml 里那条分隔线同一个原因：android.view.View
+         没有 @RemoteView 注解，RemoteViews 不 inflate 它，
+         一写就整个组件加载失败。颜色由 WidgetRender.bindRow 里 setBackgroundColor 设。 -->
+    <TextView
+        android:id="@+id/w_row_bar"
+        android:layout_width="3dp"
+        android:layout_height="24dp"
+        android:background="@color/widget_accent" />
+
+    <LinearLayout
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_weight="1"
+        android:layout_marginStart="7dp"
+        android:orientation="vertical">
+
+        <TextView
+            android:id="@+id/w_row_name"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:maxLines="1"
+            android:ellipsize="end"
+            android:textSize="11sp"
+            android:textColor="@color/widget_ink" />
+
+        <!-- 教室 + 上课时间：左右各占一头。
+             时间必须是**独立的一列**，不能拼在教室后面 —— 拼成一串后
+             ellipsize 会先吃掉末尾的时间（用户要的恰恰是它）。
+             教室的可缩，用 middle 省略：截尾会正好切掉「401」这个门牌号。
+             时间的颜色统一用主色（整个组件里「时间 == accent」是一条规则）。 -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical">
+
+            <TextView
+                android:id="@+id/w_row_loc"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:maxLines="1"
+                android:ellipsize="middle"
+                android:textSize="9sp"
+                android:textColor="@color/widget_ink2" />
+
+            <TextView
+                android:id="@+id/w_row_time"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="5dp"
+                android:maxLines="1"
+                android:textSize="9sp"
+                android:textColor="@color/widget_accent" />
+        </LinearLayout>
+    </LinearLayout>
+</LinearLayout>

@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 与 web/css/app.css 的深色主题令牌**逐值对应**（对应 :root[data-theme="dark"]）。
+     v1.9.12：夜晚也一并转暖，主色是同颗柚子绿的提亮版 #8FCB6E。 -->
+<resources>
+    <color name="edu_bg">#16130D</color>
+    <color name="edu_surface">#1D1913</color>
+    <color name="edu_surface2">#241F17</color>
+    <color name="edu_ink">#F1EBDF</color>
+    <color name="edu_ink2">#A79E8C</color>
+    <color name="edu_line">#2A251C</color>
+    <color name="edu_accent">#8FCB6E</color>
+    <color name="edu_on_accent">#14110C</color>
+
+    <!-- 桌面小组件的夜色（与 values/colors.xml 的 widget_* 逐项对应） -->
+    <color name="widget_bg">#1D1913</color>
+    <color name="widget_ink">#F1EBDF</color>
+    <color name="widget_ink2">#A79E8C</color>
+    <color name="widget_line">#2A251C</color>
+    <color name="widget_accent">#8FCB6E</color>
+    <color name="widget_focus_bg">#241F17</color>
+    <color name="widget_accent_soft">#26331D</color>
+    <color name="widget_row_hl">#232E1B</color>
+</resources>

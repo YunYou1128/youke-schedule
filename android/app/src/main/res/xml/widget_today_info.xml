@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 2×2 今日课程。
+
+     minWidth / minHeight 用的是 Android 11 及以前的格子换算公式
+     （70dp × n − 30dp）：2 格 → 110dp。
+     targetCellWidth / targetCellHeight 是 Android 12 起的新写法
+     （直接按格子数指定，不再猜 dp），旧系统会忽略这两个属性。
+     两套都写，是为了让 12 前后都能落在「2×2」这个位置上。
+
+     updatePeriodMillis 30 分钟：它同时承担**跨天**——
+     过了午夜系统会调 onUpdate，组件自己换成新的一天。 -->
+<appwidget-provider xmlns:android="http://schemas.android.com/apk/res/android"
+    android:minWidth="110dp"
+    android:minHeight="110dp"
+    android:targetCellWidth="2"
+    android:targetCellHeight="2"
+    android:updatePeriodMillis="1800000"
+    android:initialLayout="@layout/widget_today"
+    android:previewLayout="@layout/widget_today"
+    android:label="@string/widget_today_label"
+    android:description="@string/widget_today_desc"
+    android:resizeMode="horizontal|vertical"
+    android:widgetCategory="home_screen" />

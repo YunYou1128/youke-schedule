@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 与 web/css/app.css 的浅色主题令牌**逐值对应**，避免内嵌浏览器与课表页两种风格。
+     改这里就要同时改 web/css/app.css —— tools/smoke-test.js 有一条哨兵会比对两边。
+     v1.9.12：主色从「通用蓝」#4A6CF7 换成品牌「柚子绿」#3E7C2E，中性色整体调暖。 -->
+<resources>
+    <color name="edu_bg">#F5EFE3</color>
+    <color name="edu_surface">#FFFDF8</color>
+    <color name="edu_surface2">#F6F1E7</color>
+    <color name="edu_ink">#241E16</color>
+    <color name="edu_ink2">#6A6152</color>
+    <color name="edu_line">#EFE8D9</color>
+    <color name="edu_accent">#3E7C2E</color>
+    <color name="edu_on_accent">#FFFFFF</color>
+
+    <!-- ============ 桌面小组件 ============
+         单独一组而不是直接复用 edu_*：两者用途不同，混用的代价是
+         「改课表页配色」会顺手改掉桌面组件的外观，而组件在桌面上是跟
+         别的应用摆在一起的，色值需求本来就不一样（比如它需要一块
+         「正在上课」的浅底高亮，课表页没有这个东西）。
+         但**基调仍与主题一致**：底色/墨色/主色都取自同一套柚子绿 + 暖中性色。 -->
+    <color name="widget_bg">#FFFDF8</color>
+    <color name="widget_ink">#241E16</color>
+    <color name="widget_ink2">#6A6152</color>
+    <color name="widget_line">#EFE8D9</color>
+    <color name="widget_accent">#3E7C2E</color>
+    <!-- 「下一节」那一块的底色（比组件底色稍深一档，像一张压下去的小卡片） -->
+    <color name="widget_focus_bg">#F6F1E7</color>
+    <!-- 「正在上课」的底色：主色淡化，一眼能和「下一节」区分开 -->
+    <color name="widget_accent_soft">#E4EFDC</color>
+    <!-- 列表里高亮的那一行 -->
+    <color name="widget_row_hl">#EDF4E7</color>
+</resources>

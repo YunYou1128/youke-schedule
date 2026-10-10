@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  FileProvider 可共享的目录白名单。
+
+  只暴露**一个**目录，别的什么都不给 —— 权限收得越窄越好：
+   · share/           「分享课表 → 发送到聊天」用的（cacheDir/share/ 下那一份 .csv）。
+
+  v1.9.43 删掉了原来第二条 `dumps`（external-files-path `dumps/`）——
+  它是「长按『怎么用』把当前教务页面原样存下来再分享」那条救命出口用的，
+  随自研抓页通道一起拆了，写那份 HTML 的 dumpPage() 已经不存在。
+  **留着这一条反而有害**：白名单里的目录没人写、也没人读，
+  下一轮复核时会以为「还有一条导出页面的路」。
+
+  ⚠️ share/ 是**收窄过的**（v1.9.29 之前这一条写的是 `path="."`，等于把整个 cacheDir
+  都放进了白名单）。分享真正用到的只有 cacheDir/share/ —— ShareBridge.writeShareCache
+  就写在那儿、而且每次先清空。注释原来还宣称缓存目录整个都在白名单里，
+  不改就变成「注释与实现不符」—— 而那正是将来被当成「已经收窄过了」、不再复核它的地方。
+-->
+<paths>
+    <cache-path
+        name="share"
+        path="share/" />
+</paths>

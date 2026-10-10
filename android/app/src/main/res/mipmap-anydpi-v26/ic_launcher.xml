@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 柚课 · 自适应图标：
+     背景层 = 满幅纯色（drawable/ic_launcher_background.xml）
+     前景层 = 108dp 透明底位图，主体（柚子 + 课表格子）已收在中心 72dp 安全圆内。
+     前景是带渐变的位图而非矢量，所以走 mipmap-*dpi 五档。 -->
+<adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">
+    <background android:drawable="@drawable/ic_launcher_background" />
+    <foreground android:drawable="@mipmap/ic_launcher_foreground" />
+</adaptive-icon>

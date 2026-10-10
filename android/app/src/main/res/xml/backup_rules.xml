@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Android 11 及以下：允许备份 WebView 本地存储（含课表数据）。
+
+     备份口径（v1.9.29 明确）：**保留 allowBackup="true"** —— 课表是用户手输/导入攒出来的，
+     「换机不丢」的兜底比「数据绝不离开设备」更值钱；代价是开启系统云备份时，
+     课表会随系统备份同步，这一条已在 README「权限口径」里如实写出来。
+
+     收窄（v1.9.29 新增）：排掉教务浏览器的 `edu_browser.xml`。
+     它存的是「上次访问的教务网址」(last_url) 与「用户确认过证书的域名」(ssl_trusted_hosts)，
+     都是**浏览痕迹**、不是课表数据本身 —— 换机时没有搬走的必要，留着只是多带一份隐私。
+     ⚠️ 注意这里的 `path` 是**文件名（要带 `.xml`）**，不是目录。
+-->
+<full-backup-content>
+    <include
+        domain="file"
+        path="databases" />
+    <include
+        domain="file"
+        path="app_webview" />
+    <include
+        domain="database"
+        path="." />
+    <include
+        domain="sharedpref"
+        path="." />
+    <exclude
+        domain="sharedpref"
+        path="edu_browser.xml" />
+</full-backup-content>

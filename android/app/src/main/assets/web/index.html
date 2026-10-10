@@ -1,0 +1,646 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<!-- v1.9.45 起**不再禁缩放**（去掉 maximum-scale / user-scalable=no）：
+     课表七列在小屏上字号很小，视力不佳的用户需要双指放大。禁缩放同时也关掉了
+     读屏 / 系统辅助功能的一部分能力，属无障碍问题。布局本身不靠禁缩放维持
+     —— 一屏 8 节是按可视高度算行高实现的，放大不改行高。 -->
+<!-- 状态栏底色：与白天主题的 --surface 一致（app.js 切主题时会改写它） -->
+<meta name="theme-color" content="#fffdf8">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="柚课">
+<title>柚课</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon-180.png">
+<link rel="stylesheet" href="css/app.css">
+<script>
+/* 在首帧之前定好主题，避免深色模式下先闪一下白屏。
+   与 store.js / app.js 的逻辑保持一致：'auto' 交给系统偏好决定。 */
+(function () {
+  try {
+    var t = 'auto';
+    var raw = localStorage.getItem('schedule_app_v2');
+    if (raw) {
+      var d = JSON.parse(raw);
+      if (d && d.prefs && d.prefs.theme) t = d.prefs.theme;
+    }
+    if (t !== 'light' && t !== 'dark') {
+      t = (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches)
+        ? 'dark' : 'light';
+    }
+    document.documentElement.setAttribute('data-theme', t);
+  } catch (e) {
+    document.documentElement.setAttribute('data-theme', 'light');
+  }
+})();
+</script>
+</head>
+<body>
+
+<div id="app">
+
+  <!-- 顶部信息：当前课表 / 第几周 / 单双周 / 年月日 -->
+  <header class="topbar">
+    <div class="tb-info">
+      <div class="tb-line1">
+        <button class="sched-chip" id="btnSched" title="切换 / 管理课表">
+          <span class="sc-name" id="curSchedName">我的课表</span>
+          <svg class="sc-caret" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 10l5 5 5-5"/></svg>
+        </button>
+        <span class="tb-week" id="weekText">第 1 周</span>
+        <span class="chip chip-accent" id="parityText">单周</span>
+      </div>
+      <div class="tb-line2">
+        <span id="dateText">—</span>
+        <span class="sep">·</span>
+        <span id="weekdayText">—</span>
+        <span class="sep">·</span>
+        <span class="term" id="termTip"></span>
+      </div>
+    </div>
+    <div class="tb-actions">
+      <button class="icon-btn" id="btnImport" aria-label="导入课表" title="导入课表">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3.5v11"/><path d="M7.8 10.6 12 14.8l4.2-4.2"/><path d="M4.5 19.5h15"/></svg>
+      </button>
+      <button class="icon-btn" id="btnAdd" aria-label="添加课程" title="添加课程">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5.2v13.6"/><path d="M5.2 12h13.6"/></svg>
+      </button>
+      <button class="icon-btn" id="btnShare" aria-label="分享课表" title="分享课表">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="17.5" cy="5.5" r="2.6"/><circle cx="6.5" cy="12" r="2.6"/><circle cx="17.5" cy="18.5" r="2.6"/><path d="M8.9 10.8 15.1 6.7"/><path d="M8.9 13.2 15.1 17.3"/></svg>
+      </button>
+      <button class="icon-btn" id="btnSettings" aria-label="设置" title="设置">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7.5h7"/><path d="M15.5 7.5h4.5"/><circle cx="13.2" cy="7.5" r="2.2"/><path d="M4 16.5h4.5"/><path d="M13 16.5h7"/><circle cx="10.7" cy="16.5" r="2.2"/></svg>
+      </button>
+    </div>
+  </header>
+
+  <!-- 周次切换（也可左右滑动课表切换） -->
+  <nav class="weekbar">
+    <button class="nav-btn" id="prevWeek" aria-label="上一周">‹</button>
+    <div class="weekbar-center">
+      <span id="curWeekText">第 1 周</span>
+      <span class="sub" id="curRangeText"></span>
+    </div>
+    <button class="nav-btn" id="nextWeek" aria-label="下一周">›</button>
+    <button class="btn btn-mini" id="btnToday">本周</button>
+    <!-- 白天 / 夜晚开关：原来在顶栏第三格，让位给「分享」后落到这一行的最右。
+         图标与行为都没变（月亮 = 切到夜晚、太阳 = 切回白天）。 -->
+    <button class="icon-btn" id="btnTheme" aria-label="切换白天 / 夜晚模式" title="切换白天 / 夜晚模式">
+      <svg class="ic-moon" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 14.2A8.2 8.2 0 0 1 9.8 4a8.4 8.4 0 1 0 10.2 10.2z"/></svg>
+      <svg class="ic-sun" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4.1"/><path d="M12 2.6v2.2"/><path d="M12 19.2v2.2"/><path d="M4.3 4.3 5.9 5.9"/><path d="M18.1 18.1 19.7 19.7"/><path d="M2.6 12h2.2"/><path d="M19.2 12h2.2"/><path d="M4.3 19.7 5.9 18.1"/><path d="M18.1 5.9 19.7 4.3"/></svg>
+    </button>
+  </nav>
+
+  <!-- 课表主体：一屏 8 节，纵向滚动查看更多 -->
+  <div class="grid-wrap" id="gridWrap">
+    <div class="schedule" id="schedule"></div>
+  </div>
+  <div class="scroll-fade" id="scrollFade"></div>
+</div>
+
+<!-- ===== 导入课表 ===== -->
+<div class="mask" id="maskImport">
+  <div class="sheet">
+    <h3>导入课表</h3>
+    <div class="field">
+      <label for="importTarget">导入到哪个课表</label>
+      <button type="button" class="nav-row" id="importTarget" value="">
+        <span class="nr-main"><span class="nr-title" id="importTargetText">—</span></span>
+        <i class="chev"></i>
+      </button>
+      <div class="hint">可先在这里切换目标课表，导入不会影响其他课表。</div>
+    </div>
+    <div class="field">
+      <label>方式一：从教务系统导入（推荐）</label>
+      <button class="btn btn-primary btn-block" id="btnEduEntry">
+        <svg class="bi" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8.6"/><path d="M3.4 12h17.2"/><path d="M12 3.4c4.6 4.4 4.6 12.8 0 17.2-4.6-4.4-4.6-12.8 0-17.2z"/></svg>
+        <span id="eduEntryLabel">打开我的学校教务系统</span>
+      </button>
+      <button class="btn btn-block" id="btnEduImport" style="margin-top:8px">
+        选择学校（社区适配库 / 我的学校）
+      </button>
+      <div class="hint">
+        <b>第一次用</b>：点上面那颗按钮，在学校列表里搜你学校的名字
+        （本校和带「适配」标记的<b>社区适配库</b>学校按字母排在一起 ——
+        每所由一段适配脚本自动把课表取回来），
+        搜不到就用「手动输入」填一次教务地址，填完只存你本机。<br>
+        进站后<b>自己登录</b> → 翻到「学生个人课表」 → 点底栏那条的
+        <b>「执行导入」</b>，课表就进来了。<br>
+        没有适配脚本的学校（自己手填地址那种）还有一条路：点课表页上教务系统
+        自己的<b>「导出 / 下载课表」</b>，下载会被自动接住、直接导入。<br>
+        不用截图。也不上传你的数据 —— 地址、账号、课表都只落在本机。
+      </div>
+    </div>
+    <div class="field">
+      <label for="fileInput">方式二：选择文件（自动识别格式）</label>
+      <input type="file" id="fileInput"
+        accept=".csv,.txt,.xls,.xlsx,.pdf,.html,.htm,text/csv,text/plain,text/comma-separated-values,application/csv,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/pdf,text/html,application/octet-stream"
+        style="padding:8px">
+      <div class="hint">
+        支持五种文件，直接选原文件即可，不用转换：<br>
+        · 教务系统「导出课表」下的 <b>网页课表</b>（.html，或伪装成 .xls 的网页表格）<br>
+        · 教务处下发的 <b>Excel 课表</b>（.xls / .xlsx）<br>
+        · 教务系统下载的 <b>PDF 课表</b>（.pdf）<br>
+        · 按 A→G 列整理的 <b>CSV 课表</b>
+      </div>
+    </div>
+    <div class="field">
+      <label for="pasteArea">方式三：粘贴 CSV 文本</label>
+      <textarea id="pasteArea" placeholder="课程名称,星期,开始节数,结束节数,老师,地点,周数&#10;高等数学,1,1,2,张老师,教三-301,1-16&#10;线性代数,2,6,7,赵老师,教二-204,1-16(单)"></textarea>
+      <div class="hint">CSV 列顺序（A→G）：课程名称、星期、开始节数、结束节数、老师、地点、周数</div>
+    </div>
+    <div id="importResult"></div>
+    <div class="sheet-actions">
+      <button class="btn" id="btnImportClose">关闭</button>
+      <button class="btn btn-primary" id="btnImportPaste">解析粘贴内容</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===== 打开教务系统 / 我的学校 ===== -->
+<div class="mask" id="maskSchool">
+  <div class="sheet">
+    <h3>打开教务系统</h3>
+    <div class="field">
+      <input type="search" id="schoolSearch" autocomplete="off"
+        aria-label="搜索学校"
+        placeholder="搜学校（校名 / 缩写 / 维护者）">
+      <div class="hint">
+        载入适配库后，<b>社区适配库</b>里 200 多所学校会按字母列在下面：
+        每所由社区维护一段适配脚本，选中后会用它自动把课表取回来；
+        <b>第一次要联网</b>载入这份清单（约 75 KB，四条镜像任取一条通就行），
+        载入一次就存在本机，之后离线也能用；<br>
+        用过的学校会置顶。「我的学校」是你自己添加的，只存本机。
+      </div>
+    </div>
+    <div class="school-list" id="schoolList"></div>
+
+    <div class="field school-panel" id="schoolManual" hidden>
+      <label for="schName">添加其他学校（填教务系统地址）</label>
+      <input type="text" id="schName" autocomplete="off" placeholder="学校名称（如：某某大学）">
+      <input type="text" id="schUrl" autocomplete="off" style="margin-top:8px"
+        aria-label="教务系统地址"
+        placeholder="https://jwglxt.xxx.edu.cn/jwglxt/xtgl/login_slogin.html">
+      <div class="hint" id="schUrlHint">
+        只填域名也行，例如 <b>jwglxt.xxx.edu.cn</b>；不确定登录页路径时点下面的「按正方规则补全」。
+        添加后同样存本机、可随时删除。
+      </div>
+      <div class="row" style="margin-top:8px">
+        <button class="btn btn-mini" id="btnSchZf">按正方规则补全</button>
+        <button class="btn btn-mini btn-primary" id="btnSchSave">保存并打开</button>
+      </div>
+    </div>
+
+    <div class="field school-panel" id="schoolImport" hidden>
+      <label for="schImportArea">批量导入学校列表</label>
+      <textarea id="schImportArea" placeholder="一行一所，学校名和地址用逗号或空格分开：&#10;某某大学,https://jwgl.xxx.edu.cn/jwglxt/xtgl/login_slogin.html&#10;某某学院 jwglxt.yyy.edu.cn&#10;也可以直接粘 JSON 数组"></textarea>
+      <div class="hint">导入的学校只存在本机（不上传），会出现在上方列表里，可随时删除。</div>
+      <div class="row" style="margin-top:8px">
+        <button class="btn btn-mini btn-primary" id="btnSchImportDo">导入</button>
+        <button class="btn btn-mini" id="btnSchExport">导出我的学校</button>
+      </div>
+    </div>
+
+    <div id="schoolResult"></div>
+    <div class="sheet-actions">
+      <button class="btn" id="btnSchManualToggle">手动输入</button>
+      <button class="btn" id="btnSchImportToggle">批量导入</button>
+      <button class="btn" id="btnSchoolClose">关闭</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===== 课表管理（多课表切换） ===== -->
+<div class="mask" id="maskSched">
+  <div class="sheet">
+    <h3>我的课表</h3>
+    <div class="sched-list" id="schedList"></div>
+    <div class="sched-hint">
+      每个课表各自独立保存课程与学期设置（开学日期、总周数、节数、作息时间），
+      相互之间不会影响。点击课表名即可切换当前显示的课表。
+    </div>
+    <div class="sheet-actions">
+      <button class="btn" id="btnSchedClose">关闭</button>
+      <button class="btn btn-primary" id="btnSchedNew">新建课表</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===== 设置 ===== -->
+<div class="mask" id="maskSettings">
+  <div class="sheet">
+    <h3>设置</h3>
+    <div class="field">
+      <label>界面主题</label>
+      <div class="seg" id="segTheme">
+        <button data-theme="auto">跟随系统</button>
+        <button data-theme="light">白天模式</button>
+        <button data-theme="dark">夜晚模式</button>
+      </div>
+      <div class="hint">也可直接点周次栏最右边的月亮 / 太阳图标快速切换。</div>
+    </div>
+    <div class="field">
+      <label for="setSchedName">当前课表</label>
+      <input type="text" id="setSchedName" maxlength="24" placeholder="如：大三上">
+      <div class="hint">下面这些设置只对「当前课表」生效，不会影响其他课表。</div>
+    </div>
+    <div class="field">
+      <label for="setStart">学期第一周的周一</label>
+      <!-- 自绘月历（v1.9.15）：原生 input[type=date] 弹的是系统日历，
+           皮肤跟着 Activity 主题走、不认页面主题，白天暖色界面里会弹出一块深灰。
+           这里沿用全站那条约定：**id 留在控件上、值放 .value**，
+           所以 app.js 的读写（fillSettings / saveSettings）一个字都不用改。 -->
+      <button type="button" class="nav-row" id="setStart" value="">
+        <span class="nr-main"><span class="nr-title" id="startDateText">—</span></span>
+        <i class="chev"></i>
+      </button>
+      <div class="hint">用于计算「当前第几周 / 单双周」，可选择该周任意一天，程序会自动对齐到周一。</div>
+    </div>
+    <div class="row">
+      <div class="field">
+        <label for="setTotal">学期总周数</label>
+        <input type="number" id="setTotal" min="1" max="40" step="1">
+      </div>
+      <div class="field">
+        <label for="setSections">每天节数</label>
+        <input type="number" id="setSections" min="5" max="16" step="1">
+      </div>
+    </div>
+    <div class="field">
+      <label for="btnTimes">上课时间表</label>
+      <!-- 不再在文本框里手打「08:00-08:45」，点进独立一页去调（见 maskTimetable） -->
+      <button class="nav-row" id="btnTimes">
+        <span class="nr-main">
+          <span class="nr-title">每节起止时间</span>
+          <span class="nr-sub" id="timesSummary">—</span>
+        </span>
+        <i class="chev"></i>
+      </button>
+    </div>
+    <div class="field">
+      <label>备份与恢复</label>
+      <div class="row">
+        <button class="btn btn-mini" id="btnBackupAll">导出全部数据</button>
+        <button class="btn btn-mini" id="btnRestoreAll">从备份恢复</button>
+      </div>
+      <input type="file" id="restoreInput" accept=".json,application/json" hidden>
+      <div class="hint">
+        备份文件里是<b>全部课表 + 设置</b>（每节起止时间、学期第一周的周一、总周数都在）；
+        换手机时用它一次搬完。用 CSV / 教务导入只能带回课程，上面那几项会回到默认值。
+      </div>
+    </div>
+    <div class="sheet-actions">
+      <button class="btn" id="btnManageSched">管理课表</button>
+      <button class="btn btn-danger" id="btnClear">清空当前课表</button>
+    </div>
+    <div class="sheet-actions">
+      <button class="btn" id="btnSettingsClose">取消</button>
+      <button class="btn btn-primary" id="btnSaveSettings">保存</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===== 编辑时间表 =====
+     设置里「上课时间表」点进来的一整页（不是底部弹层）。
+     上面的开关与时长管「规则」，下面的列表管「每一节」。
+     整页操作的是 app.js 里的一份草稿：返回 = 丢弃，保存 = 落到当前课表。 -->
+<div class="mask mask-page" id="maskTimetable">
+  <div class="page">
+    <div class="page-head">
+      <button class="icon-btn" id="ttBack" aria-label="返回">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 5l-7 7 7 7"/></svg>
+      </button>
+      <h3 class="ph-title">编辑时间表</h3>
+      <button class="ph-save" id="ttSave">保存</button>
+    </div>
+    <div class="page-body">
+      <div class="card">
+        <div class="card-row">
+          <span class="cr-main">
+            <span class="cr-label">固定上课时长</span>
+            <span class="cr-sub" id="ttFixedHint">避免每节课时长不一致</span>
+          </span>
+          <label class="switch">
+            <input type="checkbox" id="ttFixed">
+            <span class="sw-track"><span class="sw-knob"></span></span>
+          </label>
+        </div>
+        <div class="card-row" id="rowDur">
+          <span class="cr-label">每节课时长（分钟）</span>
+          <!-- 自绘单选列表（v1.9.15）。这里的 <button> 同时是「值容器」：
+               disabled / value 与原来的 <select> 语义一致，app.js 的
+               applyFixedState 与 e2e 的断言都不用改。 -->
+          <button type="button" class="cr-value cr-value-btn" id="ttDur" value="45">
+            <span id="ttDurText">45 分钟</span>
+            <i class="chev"></i>
+          </button>
+        </div>
+      </div>
+      <div class="list-head">
+        <span class="lh-hint">请注意是 24 小时制！左滑某一节可删除</span>
+        <button class="add-btn" id="ttAdd"><i class="plus">+</i>添加</button>
+      </div>
+      <!-- 每一节一行，由 app.js 的 renderTimes() 生成 -->
+      <div class="card" id="ttList"></div>
+      <div class="page-foot">
+        <button class="btn btn-block" id="ttReset">恢复默认时间表</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ===== 添加 / 编辑课程 =====
+     同一个表单两用：从「＋」进来是添加，从课程详情的「编辑」进来是编辑
+     （标题与按钮文案由 app.js 的 openCourseForm 切换）。 -->
+<div class="mask" id="maskAdd">
+  <div class="sheet">
+    <h3 id="addTitle">添加课程</h3>
+    <div class="field">
+      <label for="addName">课程名称</label>
+      <input type="text" id="addName" placeholder="高等数学">
+    </div>
+    <!-- 卡片颜色：一个调色盘（点开取色器）+ 一个「自动」= 不指定颜色、跟着课程名走。
+         调色盘中间那块由 app.js 填当前会用到的颜色（自动时也填按课名算出来的色）。 -->
+    <div class="field field-inline">
+      <label>卡片颜色</label>
+      <div class="color-row">
+        <button type="button" class="color-pick" id="btnPickColor" aria-label="选择颜色"><i></i></button>
+        <button type="button" class="color-auto" id="btnAutoColor">自动</button>
+      </div>
+    </div>
+    <div class="row">
+      <div class="field">
+        <label for="addDay">星期</label>
+        <button type="button" class="nav-row" id="addDay" value="1">
+          <span class="nr-main"><span class="nr-title" id="addDayText">周一</span></span>
+          <i class="chev"></i>
+        </button>
+      </div>
+      <div class="field">
+        <label for="addStart">开始节数</label>
+        <input type="number" id="addStart" min="1" max="16" value="1">
+      </div>
+      <div class="field">
+        <label for="addEnd">结束节数</label>
+        <input type="number" id="addEnd" min="1" max="16" value="2">
+      </div>
+    </div>
+    <div class="row">
+      <div class="field">
+        <label for="addTeacher">老师</label>
+        <input type="text" id="addTeacher" placeholder="选填">
+      </div>
+      <div class="field">
+        <label for="addLocation">地点</label>
+        <input type="text" id="addLocation" placeholder="选填">
+      </div>
+    </div>
+    <div class="field">
+      <label for="addWeeks">上课周数</label>
+      <input type="text" id="addWeeks" value="1-16" placeholder="如 1-16 / 1-16(单) / 1,3,5">
+    </div>
+    <div class="sheet-actions">
+      <button class="btn" id="btnAddClose">取消</button>
+      <button class="btn btn-primary" id="btnAddSave">保存</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===== 课程详情（点击某节课后展示全部信息） =====
+     关闭方式两种：① 把弹层向下拖出去 ② 点弹层外的空白处。
+     这里刻意不放「关闭」按钮 —— 底部留给「编辑 / 复制 / 删除」三个真实动作。 -->
+<div class="mask" id="maskDetail">
+  <div class="sheet">
+    <div class="sheet-grip" aria-hidden="true"></div>
+    <h3 id="detailTitle">课程详情</h3>
+    <div class="detail-list" id="detailBody"></div>
+    <div class="sheet-actions">
+      <button class="btn" id="btnDetailEdit">编辑</button>
+      <button class="btn" id="btnDetailCopy">复制</button>
+      <button class="btn btn-danger" id="btnDetailDelete">删除</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===== 复制课程（从课程详情里点「复制」弹出） =====
+     两个选项只差「带多少信息走」：完整课程带上全部字段，课程名称只带课名。 -->
+<div class="mask" id="maskCopy">
+  <div class="sheet">
+    <h3>复制课程</h3>
+    <div class="opt-list">
+      <button class="opt-row" id="btnCopyFull">
+        <span class="opt-t">复制完整课程</span>
+        <span class="opt-d">课程名、时间、地点、教师、周次一起复制</span>
+      </button>
+      <button class="opt-row" id="btnCopyName">
+        <span class="opt-t">复制课程名称</span>
+        <span class="opt-d">只复制课程名</span>
+      </button>
+    </div>
+    <div class="sheet-actions">
+      <button class="btn" id="btnCopyCancel">取消</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===== 取色器（从添加 / 编辑课程里点调色盘弹出） =====
+     子弹层：进来前先收掉表单，退回时表单原样亮回来（BULLET_BACK 里那一行）。
+     左边是 HSV 方块（横向 = 饱和度、纵向 = 明度），右边是色相条；
+     下面一行是「把白字压在所选颜色上」的预览 + 可以直接敲的色值。 -->
+<div class="mask mask-center" id="maskColor">
+  <div class="sheet">
+    <h3>选择颜色</h3>
+    <div class="cp-main">
+      <div class="cp-area" id="cpArea"><i class="cp-dot" id="cpDot"></i></div>
+      <div class="cp-hue" id="cpHueBar"><i class="cp-hue-dot" id="cpHueDot"></i></div>
+    </div>
+    <div class="cp-info">
+      <div class="cp-preview" id="cpPreview"><span>课程名</span></div>
+      <input class="cp-hex" id="cpHex" type="text" value="#000000"
+             maxlength="7" spellcheck="false" autocapitalize="off"
+             autocorrect="off" aria-label="色值">
+    </div>
+    <p class="cp-tip" id="cpTip"></p>
+    <div class="sheet-actions">
+      <button class="btn" id="btnCpCancel">取消</button>
+      <button class="btn btn-primary" id="btnCpSave">保存</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===== 自绘选择器三层（v1.9.15）=====
+     它们替代的是「原生控件弹出来的系统层」，三处长相都是系统默认的深灰，
+     跟本应用的主题完全对不上。三层都由 picker.js 渲染，开关与「退回哪一层」
+     交给 app.js 的 BULLET_BACK —— 和取色器那条路子完全一致。
+     三个都是普通底部弹层（.sheet），所以圆角、安全区、点外部关闭、
+     closeAllMasks 的遍历兜底全部天然继承。 -->
+
+<!-- 1) 单选列表：每节课时长 / 星期 / 导入到哪个课表 共用 -->
+<div class="mask" id="maskPick">
+  <div class="sheet">
+    <h3 id="pickTitle">请选择</h3>
+    <div class="pick-list" id="pickList"></div>
+    <div class="sheet-actions">
+      <button class="btn" id="pickCancel">取消</button>
+    </div>
+  </div>
+</div>
+
+<!-- 2) 月历：学期第一周的周一 -->
+<div class="mask" id="maskDate">
+  <div class="sheet">
+    <h3>选择日期</h3>
+    <div class="cal-bar">
+      <button type="button" class="cal-nav" id="calPrev" aria-label="上个月">‹</button>
+      <span class="cal-title" id="calTitle">—</span>
+      <button type="button" class="cal-nav" id="calNext" aria-label="下个月">›</button>
+    </div>
+    <div class="cal-picked"><b id="calPicked">—</b><span id="calPickedWd"></span></div>
+    <div class="cal-dow">
+      <span>一</span><span>二</span><span>三</span><span>四</span><span>五</span>
+      <span class="wk">六</span><span class="wk">日</span>
+    </div>
+    <div class="cal-grid" id="calGrid"></div>
+    <p class="cal-note" id="calNote"></p>
+    <div class="sheet-actions">
+      <button class="btn" id="calCancel">取消</button>
+      <button class="btn btn-primary" id="calSave">设置</button>
+    </div>
+  </div>
+</div>
+
+<!-- 3) 滚轮：某一节的开始 / 结束时间 -->
+<div class="mask" id="maskTime">
+  <div class="sheet">
+    <h3 id="timeTitle">设置时间</h3>
+    <div class="tt-big"><b id="timeBig">08:00</b><span class="tt-end" id="timeEnd"></span></div>
+    <div class="whl-wrap">
+      <i class="whl-band" aria-hidden="true"></i>
+      <div class="whl" id="whlHour" aria-label="小时"></div>
+      <i class="whl-colon" aria-hidden="true">:</i>
+      <div class="whl" id="whlMin" aria-label="分钟"></div>
+    </div>
+    <div class="sheet-actions">
+      <button class="btn" id="timeCancel">取消</button>
+      <button class="btn btn-primary" id="timeSave">设置</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===== 分享课表（顶栏「分享」弹出） =====
+     两条出口只差「带成什么格式走」：文字适合直接粘进聊天窗口，
+     CSV 是 A→G 列的标准格式，既能用 Excel 打开，也能再导回本应用（第 1 列到第 7 列
+     与「导入课表 → 粘贴 CSV 文本」完全同口径）。 -->
+<div class="mask" id="maskShare">
+  <div class="sheet">
+    <h3>分享课表</h3>
+    <div class="field">
+      <label id="shareWhich">—</label>
+      <div class="hint" id="shareSummary">—</div>
+    </div>
+    <div class="opt-list">
+      <button class="opt-row" id="btnShareCopy">
+        <span class="opt-t">复制到剪贴板</span>
+        <span class="opt-d">整张课表转成文字，粘到微信 / QQ 直接发</span>
+      </button>
+      <button class="opt-row" id="btnShareCsv">
+        <span class="opt-t">保存为 CSV 文件</span>
+        <span class="opt-d">表格格式，可用 Excel 打开，也能再次导入本应用</span>
+      </button>
+      <button class="opt-row" id="btnShareSend">
+        <span class="opt-t">发送到聊天应用</span>
+        <span class="opt-d">微信 / QQ / 钉钉，选个聊天直接发出去</span>
+      </button>
+    </div>
+    <div class="sheet-actions">
+      <button class="btn" id="btnShareCancel">取消</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===== 发送到聊天（分享弹层的子弹层） =====
+     收到的是一个真实的 .csv 文件附件，不是一段文字 —— 所以走系统分享
+     （ACTION_SEND + FileProvider 给的 content:// Uri），对方点开就是表格。
+
+     为什么是「挑好应用再弹系统面板」而不是直接 createChooser：
+     微信 / QQ / 钉钉三个按钮能一次点到位，省掉在面板里翻找；
+     「其他应用」那一项才交回给系统面板。
+
+     没装的会就地置灰（原生 AndroidShare.hasApp 查的）—— 点了才说
+     「未安装」比一开始就说明白要差。 -->
+<div class="mask" id="maskSendTo">
+  <div class="sheet">
+    <h3>发送到聊天</h3>
+    <div class="field">
+      <label id="sendToWhat">—</label>
+      <div class="hint" id="sendToHint">—</div>
+    </div>
+    <div class="opt-list">
+      <button class="opt-row" id="btnSendWechat">
+        <span class="opt-t">微信</span>
+        <span class="opt-d" id="sendWechatD">发到微信聊天</span>
+      </button>
+      <button class="opt-row" id="btnSendQQ">
+        <span class="opt-t">QQ</span>
+        <span class="opt-d" id="sendQQD">发到 QQ 聊天</span>
+      </button>
+      <button class="opt-row" id="btnSendDing">
+        <span class="opt-t">钉钉</span>
+        <span class="opt-d" id="sendDingD">发到钉钉聊天</span>
+      </button>
+      <button class="opt-row" id="btnSendMore">
+        <span class="opt-t">其他应用</span>
+        <span class="opt-d">走系统分享面板，装了什么都列出来</span>
+      </button>
+    </div>
+    <div class="sheet-actions">
+      <button class="btn" id="btnSendCancel">取消</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===== 确认框（自绘，替代 window.confirm） =====
+     v1.9.15 把四处原生控件换掉，理由是「系统弹层的皮肤取自 Activity 主题、
+     CSS 够不着」——window.confirm 走的是同一条路（WebView 把它交给
+     onJsConfirm 弹系统 AlertDialog），于是白天暖米色页面上弹出一块冷灰。
+     它还是「子弹层」：进来前收掉调用它的那一层，取消 / 返回键 / 点弹层外
+     都退回那一层（和复制菜单、三件自绘选择器完全一致）。 -->
+<div class="mask mask-center" id="maskConfirm">
+  <div class="sheet confirm-sheet">
+    <h3 id="confirmTitle">确认</h3>
+    <p class="confirm-msg" id="confirmMsg"></p>
+    <div class="sheet-actions">
+      <button class="btn" id="confirmCancel">取消</button>
+      <button class="btn btn-danger" id="confirmOk">确定</button>
+    </div>
+  </div>
+</div>
+
+<!-- 提示条：role="status" + aria-live 让读屏在文字变化时播报。
+     它是**常驻**的空节点（不是每次新建），读屏才认得它是同一块 live region；
+     app.js 的 toast() 只改它的 textContent。 -->
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+<script src="js/store.js"></script>
+<script src="js/csv.js"></script>
+<script src="js/html.js"></script>
+<script src="js/edugrab.js"></script>
+<script src="js/xls.js"></script>
+<script src="js/pdf.js"></script>
+<script src="js/importer.js"></script>
+<!-- v1.9.42 起**包里不再有任何适配脚本**（自研那只已拆掉，本校那一行改为
+     引用上游「正方教务-通用教务」，与其他学校一样运行时下载）。 -->
+<!-- 社区适配库：索引的拉取 / 解码 / 查询（warehouse.js），
+     以及「上游数据 → 柚课课程」的唯一翻译口（adapter-import.js）。
+     两个都必须在 app.js 之前 —— app.js 在加载时就把它们取到局部变量了。 -->
+<script src="js/warehouse.js"></script>
+<script src="js/adapter-import.js"></script>
+<script src="js/schools.js"></script>
+<!-- 自绘选择器要在 app.js 之前：app.js 的 bind() 里会用到 Picker -->
+<script src="js/picker.js"></script>
+<script src="js/app.js"></script>
+</body>
+</html>
