@@ -4211,6 +4211,72 @@ check('纯文本 -> csv', Import.sniff(new Uint8Array(Buffer.from('课程名称,
       valDiff.every((k) => /(^|\.)updatedAt$/.test(k)), valDiff.join('、'));
   }
 
+  /* ============================================================
+     [G] v1.9.46 导入面板：两段说明收成可折叠
+     ------------------------------------------------------------
+     这段的检查点不是「有没有那颗按钮」，而是四件**会静默坏掉**的事：
+     ① 默认到底收没收 —— 默认展开的话这一版等于没做，可界面看起来一切正常；
+     ② `aria-controls` 指到哪儿去了 —— 悬空时点一下**什么都不发生，也不报错**；
+     ③ 开关和内容谁在前 —— 开关若排到内容上方，「收起」会出现在它要收的东西**前面**；
+     ④ `bindFolds()` 有没有真的被调用 —— 没调用时按钮长得对、点着没反应。
+     ============================================================ */
+  console.log('\n[G] v1.9.46 导入面板：两段说明可折叠');
+  {
+    const cssNC = css.replace(/\/\*[\s\S]*?\*\//g, '');
+    const foldIds = ['foldEduBody', 'foldFileBody'];
+    const btnCount = (htmlNoComment.match(/class="fold-t"/g) || []).length;
+
+    check('折叠开关恰好两个（哨兵：下面几条正则一旦失配就会假绿）',
+      btnCount === 2, btnCount + ' 个');
+
+    const dangling = foldIds.filter((id) =>
+      !new RegExp('aria-controls="' + id + '"').test(htmlNoComment) ||
+      (htmlNoComment.match(new RegExp('id="' + id + '"', 'g')) || []).length !== 1);
+    check('两个开关各指向一个真实存在、且唯一的折叠体（不许悬空）',
+      dangling.length === 0, dangling.join('、'));
+
+    check('默认是收起的：折叠体带 hidden、开关写着 aria-expanded="false"',
+      foldIds.every((id) =>
+        new RegExp('class="hint fold-b" id="' + id + '" hidden').test(htmlNoComment)) &&
+      (htmlNoComment.match(/aria-expanded="false"/g) || []).length === 2);
+
+    check('开关排在内容之后（「收起」不许出现在它要收的东西前面）',
+      foldIds.every((id) => htmlNoComment.indexOf('id="' + id + '"') <
+        htmlNoComment.indexOf('aria-controls="' + id + '"')));
+
+    check('两段折叠都留在导入面板里（没被挪到别的弹层、也没掉到弹层外）',
+      foldIds.every((id) =>
+        htmlNoComment.indexOf('id="maskImport"') < htmlNoComment.indexOf('id="' + id + '"') &&
+        htmlNoComment.indexOf('id="' + id + '"') < htmlNoComment.indexOf('id="importResult"')));
+
+    check('开关是原生 <button type="button">（Enter / 空格本来就能用）',
+      (htmlNoComment.match(/<button type="button" class="fold-t"/g) || []).length === 2);
+
+    check('两个开关都带两套文案（收起 / 展开），且都从 DOM 上取',
+      (htmlNoComment.match(/data-label-collapsed="/g) || []).length === 2 &&
+      (htmlNoComment.match(/data-label-open="收起"/g) || []).length === 2);
+
+    /* 行为：状态只落在两个属性上。少写一个就是「箭头转了但没收起」，
+       而那种半截状态肉眼很难发现 —— 所以两处都咬。 */
+    const foldFn = sliceFn(appjsNoComment, 'function bindFolds()');
+    check('bindFolds() 真的被 bind() 调用了（否则点了没反应）',
+      !!foldFn && (appjsNoComment.match(/\n\s+bindFolds\(\);/g) || []).length === 1);
+    check('折叠同时写 aria-expanded 与 body.hidden（少一个就是「转了箭头没收起」）',
+      !!foldFn && /setAttribute\('aria-expanded'/.test(foldFn) && /\.hidden\s*=/.test(foldFn),
+      foldFn ? '切出来了' : '没切到 bindFolds');
+    check('文案从 data-label-* 取，不在 JS 里再写死一份',
+      !!foldFn && /data-label-collapsed/.test(foldFn) && /data-label-open/.test(foldFn));
+
+    /* 样式：箭头要跟着状态转；键盘焦点要看得见；减少动效的机器上别硬转。 */
+    check('箭头跟着 aria-expanded 转（收起朝下、展开朝上）',
+      /\.fold-t\[aria-expanded="true"\]\s+\.chev\s*\{[^}]*rotate\(-45deg\)/.test(cssNC) &&
+      /\.fold-t\s+\.chev\s*\{[^}]*rotate\(135deg\)/.test(cssNC));
+    check('折叠开关有 :focus-visible 焦点环（键盘用户看得见落点）',
+      /\.fold-t:focus-visible\s*\{[^}]*outline:/.test(cssNC));
+    check('减少动效的机器上不硬转（prefers-reduced-motion）',
+      /@media\s*\(prefers-reduced-motion:\s*reduce\)\s*\{[\s\S]*?\.fold-t\s+\.chev\s*\{\s*transition:\s*none/.test(cssNC));
+  }
+
   console.log('\n结果：' + pass + ' 项通过，' + fail + ' 项失败\n');
   smokeFinished = true;
   process.exit(fail ? 1 : 0);
