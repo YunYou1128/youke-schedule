@@ -122,16 +122,23 @@
       <button class="btn btn-block" id="btnEduImport" style="margin-top:8px">
         选择学校（社区适配库 / 我的学校）
       </button>
-      <div class="hint">
-        <b>第一次用</b>：点上面那颗按钮，在学校列表里搜你学校的名字
-        （本校和带「适配」标记的<b>社区适配库</b>学校按字母排在一起 ——
-        每所由一段适配脚本自动把课表取回来），
-        搜不到就用「手动输入」填一次教务地址，填完只存你本机。<br>
-        进站后<b>自己登录</b> → 翻到「学生个人课表」 → 点底栏那条的
-        <b>「执行导入」</b>，课表就进来了。<br>
-        没有适配脚本的学校（自己手填地址那种）还有一条路：点课表页上教务系统
-        自己的<b>「导出 / 下载课表」</b>，下载会被自动接住、直接导入。<br>
-        不用截图。也不上传你的数据 —— 地址、账号、课表都只落在本机。
+      <div class="fold">
+        <div class="hint fold-b" id="foldEduBody" hidden>
+          <b>第一次用</b>：点上面那颗按钮，在学校列表里搜你学校的名字
+          （本校和带「适配」标记的<b>社区适配库</b>学校按字母排在一起 ——
+          每所由一段适配脚本自动把课表取回来），
+          搜不到就用「手动输入」填一次教务地址，填完只存你本机。<br>
+          进站后<b>自己登录</b> → 翻到「学生个人课表」 → 点底栏那条的
+          <b>「执行导入」</b>，课表就进来了。<br>
+          没有适配脚本的学校（自己手填地址那种）还有一条路：点课表页上教务系统
+          自己的<b>「导出 / 下载课表」</b>，下载会被自动接住、直接导入。<br>
+          不用截图。也不上传你的数据 —— 地址、账号、课表都只落在本机。
+        </div>
+        <button type="button" class="fold-t" aria-expanded="false"
+                aria-controls="foldEduBody"
+                data-label-collapsed="第一次用？怎么导" data-label-open="收起">
+          <i class="chev" aria-hidden="true"></i><span>第一次用？怎么导</span>
+        </button>
       </div>
     </div>
     <div class="field">
@@ -139,12 +146,19 @@
       <input type="file" id="fileInput"
         accept=".csv,.txt,.xls,.xlsx,.pdf,.html,.htm,text/csv,text/plain,text/comma-separated-values,application/csv,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/pdf,text/html,application/octet-stream"
         style="padding:8px">
-      <div class="hint">
-        支持五种文件，直接选原文件即可，不用转换：<br>
-        · 教务系统「导出课表」下的 <b>网页课表</b>（.html，或伪装成 .xls 的网页表格）<br>
-        · 教务处下发的 <b>Excel 课表</b>（.xls / .xlsx）<br>
-        · 教务系统下载的 <b>PDF 课表</b>（.pdf）<br>
-        · 按 A→G 列整理的 <b>CSV 课表</b>
+      <div class="fold">
+        <div class="hint fold-b" id="foldFileBody" hidden>
+          支持五种文件，直接选原文件即可，不用转换：<br>
+          · 教务系统「导出课表」下的 <b>网页课表</b>（.html，或伪装成 .xls 的网页表格）<br>
+          · 教务处下发的 <b>Excel 课表</b>（.xls / .xlsx）<br>
+          · 教务系统下载的 <b>PDF 课表</b>（.pdf）<br>
+          · 按 A→G 列整理的 <b>CSV 课表</b>
+        </div>
+        <button type="button" class="fold-t" aria-expanded="false"
+                aria-controls="foldFileBody"
+                data-label-collapsed="支持哪几种文件" data-label-open="收起">
+          <i class="chev" aria-hidden="true"></i><span>支持哪几种文件</span>
+        </button>
       </div>
     </div>
     <div class="field">

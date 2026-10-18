@@ -769,6 +769,66 @@ button { font-family: inherit; color: inherit; cursor: pointer; }
 
 .field .hint { font-size: 11px; color: var(--ink-3); margin-top: 4px; line-height: 1.5; }
 
+/* ---------------- 可折叠的说明段（v1.9.46） ----------------
+   导入面板里有两段「读一次就够」的说明（方式一怎么走、方式二吃哪几种文件），
+   全展开时会把方式二 / 方式三挤出屏幕 —— 默认收起，只留一行小字。
+
+   做成「一行小字 + 箭头」而不是一颗按钮：这一层里已经有一颗主按钮和一颗次按钮，
+   再加一颗实心按钮会抢掉「打开教务系统」的位置。箭头复用 .chev（边框画出来的），
+   只把颜色从 --ink-3 换成 --accent，与正文的灰字拉开一点层次。
+   开关**排在内容之后**：收起时它就是那一行主题（紧跟在按钮下面），
+   展开时它落到文字末尾 —— 读完就能顺手收起，不用再滚回上面去找。
+   ⚠️ 上下留白写在 `.fold .fold-b` 上：`.field .hint` 那条同样管着 4px，
+   写成 `.fold-b` 会被它压掉（同权重时后者覆盖前者，所以这里把权重提到一致）。 */
+.fold-t {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  min-height: 30px;            /* 够手指点，但看起来仍只是一行小字 */
+  margin-top: 6px;
+  padding: 0;
+  background: none;
+  border: 0;
+  font: inherit;
+  font-size: 11.5px;
+  line-height: 1.4;
+  color: var(--accent);
+  text-align: left;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* .chev 默认是 45deg（朝右），这里覆盖成「收起朝下 / 展开朝上」 */
+.fold-t .chev {
+  border-color: var(--accent);
+  transform: rotate(135deg);
+  transition: transform .18s ease;
+}
+
+.fold-t[aria-expanded="true"] .chev { transform: rotate(-45deg); }
+
+.fold-t:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+.fold .fold-b { margin-top: 6px; }
+
+/* 展开时留一点上下呼吸，收起时这一段整个不参与布局（用 hidden，不是 0 高度） */
+.fold-b:not([hidden]) { animation: fold-in .18s ease-out; }
+
+@keyframes fold-in {
+  from { opacity: 0; transform: translateY(-2px); }
+  to   { opacity: 1; transform: none; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .fold-t .chev { transition: none; }
+  .fold-b:not([hidden]) { animation: none; }
+}
+
 /* ---------------- 课程卡配色选择：调色盘 + 自动 ----------------
    只有一个调色盘按钮（不用一屏色块）：一是能选的颜色不再受限，
    二是窄屏上不再折成两行、把表单撑长。中间那块显示**当前实际会用的颜色**
