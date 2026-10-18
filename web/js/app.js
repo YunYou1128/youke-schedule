@@ -3242,6 +3242,30 @@
   /* ============================================================
      事件绑定
      ============================================================ */
+  /* 折叠说明段（v1.9.46）：导入面板里那两段「读一次就够」的说明默认收起，
+     不然方式二 / 方式三会被挤出屏幕。
+
+     做法刻意通用：文案与目标都从 DOM 上取（`aria-controls` / `data-label-*`），
+     这里一个中文字都不写。状态只落在**两个属性**上 —— `aria-expanded`（读屏与
+     箭头方向都读它）与 `body.hidden`（参与不参与布局）。不另立一套 class 名，
+     否则迟早出现「箭头转了但没收起」这种对不上的状态。
+     键盘不用另外接：它是原生 <button>，Enter / 空格本来就能用。 */
+  function bindFolds() {
+    [].slice.call(document.querySelectorAll('.fold-t')).forEach(function (btn) {
+      var body = document.getElementById(btn.getAttribute('aria-controls'));
+      if (!body) return;
+      var lab = btn.querySelector('span');
+      var whenClosed = btn.getAttribute('data-label-collapsed') || '展开';
+      var whenOpen = btn.getAttribute('data-label-open') || '收起';
+      btn.addEventListener('click', function () {
+        var opened = btn.getAttribute('aria-expanded') === 'true';
+        btn.setAttribute('aria-expanded', opened ? 'false' : 'true');
+        body.hidden = opened;
+        if (lab) lab.innerText = opened ? whenClosed : whenOpen;
+      });
+    });
+  }
+
   function bind() {
     // 周切换（按钮）
     $('prevWeek').addEventListener('click', function () { goWeek(S.viewWeek - 1, 'right'); });
@@ -3254,6 +3278,9 @@
 
     // 左右滑动切换周次
     bindSwipe();
+
+    // 导入面板里两段说明的折叠开关（v1.9.46）
+    bindFolds();
 
     // 主题：周次栏最右边那个快捷切换（原来在顶栏）
     $('btnTheme').addEventListener('click', toggleTheme);
